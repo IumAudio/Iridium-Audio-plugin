@@ -12,6 +12,10 @@
 - WebView2 界面 · 铱（Ir）元素美学 · 界面尺寸可调
 - DJAnta 主页快捷按钮 · K–Pg 边界彩蛋
 
+## 版本更新
+
+完整历史见 [CHANGELOG.md](CHANGELOG.md)；安装包见 [Releases](https://github.com/IumAudio/Iridium-Audio-plugin/releases)。
+
 ## 下载与安装
 
 最新安装包见 [Releases](https://github.com/IumAudio/Iridium-Audio-plugin/releases)。
