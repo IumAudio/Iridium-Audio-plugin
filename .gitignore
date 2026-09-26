@@ -1,0 +1,7 @@
+# Release artifacts
+/release/
+*.zip
+
+# Build outputs
+/build/
+/out/

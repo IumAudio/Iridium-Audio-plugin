@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=760,initial-scale=1.0">
+<title>Iridium — Gain-Field Limiter</title>
+<style>
+  :root {
+    --bg:#14151d;
+    --panel:#181a21;
+    --panel2:#0c0e13;
+    --edge:#303542;
+    --accent:#dbe4f0;        /* 铂银（提亮，增对比） */
+    --accent-dim:#8a93a6;
+    --irid-blue:#8fb0d4;
+    --irid-violet:#a894d0;
+    --irid-gold:#cbb888;
+    --irid-green:#96c8b6;
+    --text:#fbfdff;
+    --dim:#9aa0b4;
+    --meter-lo:#3c4458;      /* 钢青 → 铂银（铱元素色，暗端更深） */
+    --meter-hi:#d8e6f8;
+    --gr-lo:#403650;         /* 暗紫 → 虹彩紫（暗端更深） */
+    --gr-hi:#c4b4e4;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:760px; height:500px; overflow:hidden; background:var(--bg);
+    font-family:"Segoe UI","Microsoft YaHei",sans-serif; color:var(--text);
+    -webkit-user-select:none; user-select:none; }
+  body { position:relative; }
+
+  /* ── 背景：极淡的虹彩光晕 ─────────────────────────────── */
+  .glow { position:absolute; border-radius:50%; filter:blur(70px); opacity:.06; pointer-events:none; }
+  .glow.blue   { width:400px; height:400px; left:-120px; top:-140px; background:var(--irid-blue); }
+  .glow.violet { width:360px; height:360px; right:-110px; bottom:-130px; background:var(--irid-violet); }
+  .glow.gold   { width:300px; height:300px; right:170px; top:-160px; background:var(--irid-gold); opacity:.04; }
+
+  /* ── 顶栏 ─────────────────────────────────────────────── */
+  #header { position:absolute; top:0; left:0; right:0; height:50px; }
+  #logo { position:absolute; left:24px; top:14px; font-size:17px; font-weight:700; letter-spacing:4px; color:var(--accent); }
+  #logo .ver { font-size:11px; font-weight:400; letter-spacing:1px; color:var(--accent-dim); margin-left:9px; vertical-align:2px; }
+  #chain { position:absolute; left:50%; transform:translateX(-50%); top:16px; display:flex; align-items:center; gap:10px; }
+  .chain-node { font-size:12px; letter-spacing:1px; color:var(--dim); text-transform:uppercase; }
+  .chain-node.active { color:var(--accent); }
+  .chain-arrow { color:var(--irid-blue); font-size:12px; }
+  #manualBtn { position:absolute; right:24px; top:11px; background:transparent; border:1px solid var(--edge);
+    color:var(--dim); font-size:12px; letter-spacing:1px; padding:5px 15px; border-radius:11px; cursor:pointer; }
+  #manualBtn:hover { color:var(--accent); border-color:var(--accent-dim); }
+  #djdantaBtn { position:absolute; left:330px; top:70px; width:100px; height:28px;
+    background:transparent; border:1px solid var(--irid-blue); color:var(--irid-blue);
+    font-size:13px; letter-spacing:2px; border-radius:14px; cursor:pointer; }
+  #djdantaBtn:hover { color:var(--accent); border-color:var(--accent); }
+
+  /* ── 表头（垂直） ──────────────────────────────────────── */
+  .meter { position:absolute; width:18px; }
+  .meter .cap { text-align:center; font-size:11px; letter-spacing:1px; color:var(--dim); margin-bottom:6px; }
+  .meter-track { position:relative; width:100%; background:var(--panel2); border:1px solid var(--edge);
+    border-radius:5px; overflow:hidden; }
+  .meter-fill { position:absolute; left:0; right:0; bottom:0; height:0%;
+    background:linear-gradient(0deg, var(--meter-lo) 0%, var(--meter-hi) 100%); transition:height .06s linear; }
+  .meter-num { text-align:center; font-size:11px; color:var(--dim); margin-top:6px; font-variant-numeric:tabular-nums; }
+
+  #inMeter  { left:56px;  top:82px; }
+  #inMeter .meter-track { height:220px; }
+  #outMeter { left:648px; top:216px; }
+  #outMeter .meter-track { height:180px; }
+  #grMeter  { left:692px; top:216px; }
+  #grMeter .meter-track { height:180px; }
+  #grMeter .meter-fill { background:linear-gradient(0deg, var(--gr-lo) 0%, var(--gr-hi) 100%); }
+
+  /* ── 旋钮（Input / Output 等大同款，200px，柔和金属质感） ── */
+  .knob { position:absolute; width:200px; text-align:center; cursor:pointer; }
+  .knob-ring { position:relative; width:200px; height:200px; margin:0 auto; border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 28%, rgba(54,60,76,.90) 0%, rgba(42,47,60,.92) 30%, rgba(29,32,40,.94) 58%, rgba(16,18,23,.97) 100%),
+      conic-gradient(from 210deg, rgba(159,184,216,.15), rgba(184,168,216,.11), rgba(216,200,168,.14), rgba(168,216,200,.11), rgba(159,184,216,.15));
+    box-shadow:0 8px 24px rgba(0,0,0,.5), 0 0 0 5px #171920, 0 0 0 6px var(--edge),
+               inset 0 2px 2px rgba(255,255,255,.10), inset 0 -8px 16px rgba(0,0,0,.4); }
+  .knob-ring::before { content:""; position:absolute; inset:-3px; border-radius:50%; padding:3px;
+    background:conic-gradient(from 210deg, var(--irid-blue), var(--irid-violet), var(--irid-gold), var(--irid-green), var(--irid-blue));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; opacity:.20; filter:blur(1px); pointer-events:none; }
+  .knob-ring::after { content:""; position:absolute; inset:0; border-radius:50%;
+    background:repeating-conic-gradient(from 0deg, rgba(200,210,224,.30) 0deg .7deg, transparent .7deg 30deg);
+    -webkit-mask:radial-gradient(circle, transparent 74%, #000 75% 82%, transparent 83%);
+    mask:radial-gradient(circle, transparent 74%, #000 75% 82%, transparent 83%);
+    pointer-events:none; }
+  .knob-spin { position:absolute; inset:0; transform-origin:center; }
+  .knob-dot { position:absolute; left:50%; top:10px; width:2px; height:20px; margin-left:-1px;
+    background:linear-gradient(180deg, #eef2f8 0%, var(--accent) 100%);
+    border-radius:2px; box-shadow:0 0 9px rgba(200,210,224,.7); }
+  .knob-val { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
+    font-size:34px; font-weight:300; color:var(--accent); font-variant-numeric:tabular-nums;
+    text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
+  .knob-label { font-size:13px; letter-spacing:3px; color:var(--dim); margin-top:14px; }
+  .knob-sub { font-size:11px; letter-spacing:1px; color:var(--accent-dim); margin-top:6px; }
+
+  #inKnob   { left:162px; top:116px; }
+  #ceilKnob { left:398px; top:116px; }
+
+  /* ── 两旋钮之间的虹彩连接链（Input ⇄ Output） ──────────── */
+  #knobLink { position:absolute; left:360px; top:205px; width:40px; height:22px; pointer-events:none; opacity:.6;
+    background:
+      radial-gradient(ellipse 70% 150% at 50% 50%, rgba(160,185,225,.20), transparent 70%),
+      linear-gradient(90deg, transparent, var(--irid-blue) 22%, var(--irid-violet) 50%, var(--irid-gold) 78%, transparent) no-repeat center / 100% 3px; }
+  #knobLink::before { content:""; position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px;
+    transform:rotate(45deg); border-radius:1.5px;
+    background:linear-gradient(135deg, #d4dde8, var(--accent));
+    box-shadow:0 0 5px rgba(200,210,224,.40); }
+  #knobLink::after { content:""; position:absolute; left:0; top:50%; width:5px; height:5px; margin-top:-2.5px; border-radius:50%;
+    background:var(--accent);
+    box-shadow:35px 0 0 var(--accent), 0 0 6px rgba(210,222,240,.7), 35px 0 6px rgba(210,222,240,.7); }
+
+  /* ── 元素牌（右上） ───────────────────────────────────── */
+  #ptCard { position:absolute; left:636px; top:74px; width:84px; height:112px;
+    background:var(--panel); border:1px solid var(--edge); border-radius:8px;
+    text-align:center; cursor:pointer; padding-top:6px; }
+  #ptCard:hover { border-color:var(--accent-dim); }
+  #ptCard .n { font-size:12px; color:var(--dim); text-align:left; padding-left:8px; }
+  #ptCard .sym { font-size:36px; color:var(--accent); line-height:1.15; }
+  #ptCard .name { font-size:9px; letter-spacing:.5px; color:var(--dim); }
+  #ptCard .group { font-size:8px; color:var(--irid-blue); margin-top:2px; }
+  #ptCard .w { font-size:11px; color:var(--accent-dim); margin-top:3px; }
+  /* 虹彩投影：紧贴元素牌正下方 */
+  #ptSheen { position:absolute; left:646px; top:188px; width:64px; height:16px; border-radius:50%;
+    background:conic-gradient(from 0deg, var(--irid-blue), var(--irid-violet), var(--irid-gold), var(--irid-green), var(--irid-blue));
+    opacity:.18; filter:blur(6px); pointer-events:none; }
+
+  /* ── 底部 ─────────────────────────────────────────────── */
+  #footer { position:absolute; left:0; right:0; bottom:0; height:50px; display:flex;
+    align-items:center; justify-content:space-between; padding:0 24px;
+    border-top:1px solid var(--edge); background:rgba(8,9,13,.72); }
+  #brand { font-size:11.5px; letter-spacing:2px; color:var(--dim); }
+  #elLine { font-size:11.5px; color:var(--irid-blue); letter-spacing:1px; }
+  /* 尺寸调节 */
+  #zoomCtl { display:flex; align-items:center; gap:7px; }
+  #zoomCtl button { width:24px; height:24px; background:transparent; border:1px solid var(--edge);
+    color:var(--dim); border-radius:7px; cursor:pointer; font-size:15px; line-height:1; }
+  #zoomCtl button:hover { color:var(--accent); border-color:var(--accent-dim); }
+  #zoomPct { font-size:12px; color:var(--dim); min-width:42px; text-align:center; font-variant-numeric:tabular-nums; }
+
+  #easter { position:absolute; left:50%; transform:translateX(-50%); bottom:58px;
+    font-size:11.5px; color:var(--irid-gold); letter-spacing:.5px; opacity:0; transition:opacity .3s;
+    background:var(--panel); border:1px solid var(--edge); padding:6px 14px; border-radius:7px;
+    pointer-events:none; white-space:nowrap; }
+  #easter.show { opacity:1; }
+
+  /* ── 手动浮层 ─────────────────────────────────────────── */
+  #manual { position:absolute; inset:0; background:rgba(6,7,11,.92); display:none;
+    padding:32px 42px; z-index:10; }
+  #manual.show { display:block; }
+  #manual h2 { font-size:19px; font-weight:600; letter-spacing:3px; color:var(--accent); margin-bottom:2px; }
+  #manual .sub { font-size:11.5px; letter-spacing:1px; color:var(--irid-blue); margin-bottom:16px; }
+  #manual p { font-size:13.5px; line-height:1.8; color:var(--text); margin-bottom:10px; }
+  #manual p small { color:var(--dim); }
+  #manual .egg { color:var(--irid-gold); border-left:2px solid var(--irid-gold); padding-left:10px; }
+  #manualClose { position:absolute; right:22px; top:18px; background:none; border:1px solid var(--edge);
+    color:var(--dim); font-size:13px; width:28px; height:28px; border-radius:50%; cursor:pointer; }
+  #manualClose:hover { color:var(--accent); border-color:var(--accent-dim); }
+</style>
+</head>
+<body style="transform:scale(__KZOOM__);transform-origin:0 0;">
+
+  <div class="glow blue"></div>
+  <div class="glow violet"></div>
+  <div class="glow gold"></div>
+
+  <!-- 顶栏 -->
+  <div id="header">
+    <div id="logo">IRIDIUM<span class="ver">v0.0.7</span></div>
+    <div id="chain">
+      <span class="chain-node">Input</span>
+      <span class="chain-arrow">→</span>
+      <span class="chain-node active">Gain-Field Limiter</span>
+      <span class="chain-arrow">→</span>
+      <span class="chain-node">Output</span>
+    </div>
+    <button id="manualBtn">Manual</button>
+  </div>
+
+  <!-- DJAnta 跳转按钮（Input/Output 之间上方） -->
+  <button id="djdantaBtn">DJAnta</button>
+
+  <!-- 左：输入电平 -->
+  <div class="meter" id="inMeter">
+    <div class="cap">IN</div>
+    <div class="meter-track"><div class="meter-fill" id="inFill"></div></div>
+    <div class="meter-num" id="inNum">-60.0</div>
+  </div>
+
+  <!-- 输入旋钮 -->
+  <div class="knob" id="inKnob">
+    <div class="knob-ring">
+      <div class="knob-spin" id="inSpin"><div class="knob-dot"></div></div>
+      <div class="knob-val" id="inVal">0.0</div>
+    </div>
+    <div class="knob-label">INPUT</div>
+    <div class="knob-sub">±24 dB</div>
+  </div>
+
+  <!-- 输出旋钮 -->
+  <div class="knob" id="ceilKnob">
+    <div class="knob-ring">
+      <div class="knob-spin" id="ceilSpin"><div class="knob-dot"></div></div>
+      <div class="knob-val" id="ceilVal">0.0</div>
+    </div>
+    <div class="knob-label">OUTPUT</div>
+    <div class="knob-sub">TRIM</div>
+  </div>
+
+  <!-- 两旋钮连接链 -->
+  <div id="knobLink"></div>
+
+  <!-- 元素牌（右上） -->
+  <div id="ptCard" title="点击查看 K–Pg 边界彩蛋">
+    <div class="n">77</div>
+    <div class="sym">Ir</div>
+    <div class="name">IRIDIUM</div>
+    <div class="group">Transition Metal</div>
+    <div class="w">192.217</div>
+  </div>
+  <div id="ptSheen"></div>
+
+  <!-- 输出 + GR 表 -->
+  <div class="meter" id="outMeter">
+    <div class="cap">OUT</div>
+    <div class="meter-track"><div class="meter-fill" id="outFill"></div></div>
+    <div class="meter-num" id="outNum">-60.0</div>
+  </div>
+  <div class="meter" id="grMeter">
+    <div class="cap">GR</div>
+    <div class="meter-track"><div class="meter-fill" id="grFill"></div></div>
+    <div class="meter-num" id="grNum">0.0</div>
+  </div>
+
+  <!-- 底部 -->
+  <div id="footer">
+    <span id="brand">IUM AUDIO</span>
+    <div id="zoomCtl">
+      <button id="zoomMinus">−</button>
+      <span id="zoomPct">100%</span>
+      <button id="zoomPlus">+</button>
+    </div>
+    <span id="elLine">77 Ir 192.217</span>
+  </div>
+  <div id="easter">K–Pg 边界 · 66 Mya · 铱异常 → 小行星撞击 · 恐龙灭绝</div>
+
+  <!-- 手动浮层 -->
+  <div id="manual">
+    <button id="manualClose">✕</button>
+    <h2>IRIDIUM</h2>
+    <div class="sub">GAIN-FIELD LIMITER · v0.0.7</div>
+    <p><b>限幅原理</b> — 输出 y = f(x)·g(t)：把信号按过零点切成「半周期」，每段增益 = Ceiling ÷ 段峰值（局部极值约束），且只在过零点切换增益（零点锚定，无咔哒）。两段前视使增益提前就位，全程无 attack / release 时间常数。</p>
+    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。左为输入电平，右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
+    <p class="egg"><b>元素 · 铱 Ir</b> — 77 号，过渡金属，铂族。密度 22.56 g/cm³（仅次于锇），最耐腐蚀的金属。1803 年 Smithson Tennant 发现，名源自希腊语 <i>iris</i>（彩虹），因铱盐呈虹彩色。曾用于标准米原器与千克原器（铂铱合金）。</p>
+    <p class="egg"><b>彩蛋</b> — 白垩纪–古近纪（K–Pg）边界遍布全球的「铱异常」层，是小行星撞击地球、导致恐龙灭绝的关键证据。</p>
+  </div>
+
+<script>
+  // ── 状态对象（C++ 通过 JSON.stringify(window._S) 读取 / 通过 _render 写入） ──
+  var S = {
+    inputGain: 0,     // -24 … 24 dB
+    output: 0,        // -24 … +24 dB（trim，默认 0）
+    inPeak: -60,      // dB
+    outPeak: -60,     // dB
+    gr: 0,            // dB（衰减量，正）
+    zoom: 1.0,        // UI 缩放（0.7 … 2.0）
+    _openLink: 0,     // DJAnta 链接点击计数（C++ 检测到增加即开浏览器）
+    _dragging: false
+  };
+  window._S = S;
+  window._render = render;
+
+  var smooth = { inPeak: -60, outPeak: -60, gr: 0 };
+  function lerp(a, b, k) { return a + (b - a) * k; }
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function knobDeg(val, lo, hi) {
+    var t = (val - lo) / (hi - lo);          // 0..1
+    return -135 + t * 270;                    // -135° … +135°
+  }
+  function fmtDB(v) { return (v <= -59.95 ? '-∞' : v.toFixed(1)); }
+
+  function render() {
+    smooth.inPeak  = lerp(smooth.inPeak,  S.inPeak,  0.14);
+    smooth.outPeak = lerp(smooth.outPeak, S.outPeak, 0.14);
+    smooth.gr      = lerp(smooth.gr,      S.gr,      0.16);
+
+    var inH  = clamp((smooth.inPeak  + 60) / 60 * 100, 0, 100);
+    var outH = clamp((smooth.outPeak + 60) / 60 * 100, 0, 100);
+    var grH  = clamp(smooth.gr / 24 * 100, 0, 100);
+
+    document.getElementById('inFill').style.height  = inH + '%';
+    document.getElementById('outFill').style.height = outH + '%';
+    document.getElementById('grFill').style.height  = grH + '%';
+    document.getElementById('inNum').textContent  = fmtDB(S.inPeak);
+    document.getElementById('outNum').textContent = fmtDB(S.outPeak);
+    document.getElementById('grNum').textContent  = S.gr.toFixed(1);
+
+    document.getElementById('inVal').textContent   = S.inputGain.toFixed(1);
+    document.getElementById('ceilVal').textContent = S.output.toFixed(1);
+    document.getElementById('inSpin').style.transform   = 'rotate(' + knobDeg(S.inputGain, -24, 24) + 'deg)';
+    document.getElementById('ceilSpin').style.transform = 'rotate(' + knobDeg(S.output,  -24, 24)  + 'deg)';
+
+    // 缩放
+    document.body.style.transform = 'scale(' + S.zoom + ')';
+    document.getElementById('zoomPct').textContent = Math.round(S.zoom * 100) + '%';
+  }
+
+  // ── 旋钮拖拽 ───────────────────────────────────────────
+  var drag = null;
+  function bindKnob(el, get, set, lo, hi, sens) {
+    el.addEventListener('mousedown', function(e) {
+      drag = { startY: e.clientY, startVal: get(), set: set, lo: lo, hi: hi, sens: sens };
+      S._dragging = true;
+      e.preventDefault();
+    });
+    el.addEventListener('dblclick', function() {
+      set(0); render(); e.preventDefault();
+    });
+  }
+  document.addEventListener('mousemove', function(e) {
+    if (!drag) return;
+    var delta = (drag.startY - e.clientY) * drag.sens;
+    var v = clamp(drag.startVal + delta, drag.lo, drag.hi);
+    drag.set(v);
+    render();
+  });
+  document.addEventListener('mouseup', function() {
+    if (drag) { drag = null; S._dragging = false; }
+  });
+
+  bindKnob(document.getElementById('inKnob'),
+    function() { return S.inputGain; },
+    function(v) { S.inputGain = Math.round(v * 10) / 10; },
+    -24, 24, 0.28);
+  bindKnob(document.getElementById('ceilKnob'),
+    function() { return S.output; },
+    function(v) { S.output = Math.round(v * 10) / 10; },
+    -24, 24, 0.14);
+
+  // ── 尺寸调节 ───────────────────────────────────────────
+  function setZoom(z) {
+    S.zoom = clamp(Math.round(z * 100) / 100, 0.7, 2.0);
+    render();
+  }
+  document.getElementById('zoomMinus').addEventListener('click', function() { setZoom(S.zoom - 0.1); });
+  document.getElementById('zoomPlus').addEventListener('click',  function() { setZoom(S.zoom + 0.1); });
+
+  // ── 手动浮层 ───────────────────────────────────────────
+  var manualEl = document.getElementById('manual');
+  document.getElementById('manualBtn').addEventListener('click', function() {
+    manualEl.classList.add('show');
+  });
+  document.getElementById('manualClose').addEventListener('click', function() {
+    manualEl.classList.remove('show');
+  });
+
+  // ── DJAnta 跳转（C++ 检测计数增加后打开默认浏览器） ──────
+  document.getElementById('djdantaBtn').addEventListener('click', function() {
+    S._openLink = (S._openLink || 0) + 1;
+  });
+
+  // ── 元素牌彩蛋：点击切换 K–Pg 边界 ───────────────────────
+  var easter = document.getElementById('easter'), eggTimer = null;
+  document.getElementById('ptCard').addEventListener('click', function() {
+    easter.classList.add('show');
+    clearTimeout(eggTimer);
+    eggTimer = setTimeout(function() { easter.classList.remove('show'); }, 3200);
+  });
+
+  // ── 就绪信号：撤掉 C++ 的启动盖牌 ───────────────────────
+  function emitReady() {
+    try {
+      if (window.__JUCE__ && window.__JUCE__.backend && window.__JUCE__.backend.emitEvent)
+        window.__JUCE__.backend.emitEvent('iridiumReady', {});
+    } catch (e) {}
+  }
+
+  render();
+  window.addEventListener('load', function() { emitReady(); });
+  setTimeout(emitReady, 300);
+</script>
+</body>
+</html>
