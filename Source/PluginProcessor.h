@@ -2,6 +2,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 #include <cmath>
+#include <deque>
 #include "dsp/IridiumLimiter.h"
 
 class IridiumAudioProcessorEditor;
@@ -36,13 +37,13 @@ public:
         AudioProcessorValueTreeState::ParameterLayout layout;
 
         layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::inputGain, "Input",
-                                                           NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f,
+                                                           NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
                                                            AudioParameterFloatAttributes{}
                                                                .withLabel ("dB")
                                                                .withCategory (AudioProcessorParameter::inputGain)));
 
         layout.add (std::make_unique<AudioParameterFloat> (ParamIDs::output, "Output",
-                                                           NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f,
+                                                           NormalisableRange<float> (-24.0f, 24.0f, 0.01f), 0.0f,
                                                            AudioParameterFloatAttributes{}
                                                                .withLabel ("dB")
                                                                .withCategory (AudioProcessorParameter::outputGain)));
@@ -109,6 +110,9 @@ public:
     float getInputPeakDB()  const { return inPeakDB; }
     float getOutputPeakDB() const { return outPeakDB; }
 
+    // 供编辑器读取短期响度（LUFS，dB；测输出信号）
+    float getShortLUFS() const { return shortLufs; }
+
     // UI 缩放（1.0 = 基准 760×500；随宿主状态持久化）
     float uiZoom = 1.0f;
 
@@ -122,11 +126,19 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
 private:
-    // 16× 过采样（factor=4 → 2^4=16）：抗混叠，非真峰值检测
+    // 16× 过采样（factor=4 → 2^4=16）：IIR 半带（低延迟）
     juce::dsp::Oversampling<float> oversampling { 2, 4,
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, false };
     IridiumLimiter limiter;        // 16× 过采样域（OS 开）
     IridiumLimiter limiterBase;    // 基频域（OS 关）
+
+    // 短期响度 LUFS（BS.1770 K加权 + 400ms 均方块 + 3s 滑窗，测输出）
+    juce::dsp::IIR::Filter<float> k1L, k1R, k2L, k2R;   // K加权两阶，每声道
+    int    lufsBlockLen = 0;         // 400ms 块样本数
+    int    lufsBlockCnt = 0;         // 当前块累计样本
+    double lufsBlockAcc = 0.0;       // 当前块 K加权均方和（L+R 均值）
+    std::deque<double> lufsBlocks;   // 最近 8 块均方（≈3.2s 滑窗）
+    float  shortLufs    = -70.0f;    // 当前短期 LUFS（dB）
 
     juce::AudioParameterFloat* inputGainParam = nullptr;
     juce::AudioParameterFloat* outputParam    = nullptr;

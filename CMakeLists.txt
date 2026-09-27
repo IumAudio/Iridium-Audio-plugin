@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # ─── Project ───────────────────────────────────────────────────────────────
-project(Iridium VERSION 0.0.9 LANGUAGES CXX)  # v0.0.9 — FC 限得更狠/更开放 + 按钮调暗 + 滚轮 + 撤回重做
+project(Iridium VERSION 0.2.0 LANGUAGES CXX)  # v0.2.0 — LUFS 表 + 原子动画彩蛋 + 0.01dB 精度
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

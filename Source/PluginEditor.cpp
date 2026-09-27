@@ -97,7 +97,7 @@ void IridiumAudioProcessorEditor::timerCallback()
                     auto* x = proc.apvts.getParameter (id);
                     if (x == nullptr) return;
                     float nrm = x->convertTo0to1 (val);
-                    if (std::abs (x->getValue() - nrm) > 0.001f)
+                    if (std::abs (x->getValue() - nrm) > 0.0001f)   // 0.01dB 步进需更细阈值（0.01/48≈0.0002）
                         x->setValueNotifyingHost (nrm);
                 };
                 auto setBool = [&] (const char* id, bool b) {
@@ -107,8 +107,8 @@ void IridiumAudioProcessorEditor::timerCallback()
                     if (std::abs (x->getValue() - target) > 0.001f)
                         x->setValueNotifyingHost (target);
                 };
-                if (v.hasProperty ("inputGain")) set (ParamIDs::inputGain, safeV (v["inputGain"]));
-                if (v.hasProperty ("output"))    set (ParamIDs::output,    safeV (v["output"]));
+                if (v.hasProperty ("inputGain")) { lastInputGain = safeV (v["inputGain"]); set (ParamIDs::inputGain, lastInputGain); }
+                if (v.hasProperty ("output"))    { lastOutput    = safeV (v["output"]);    set (ParamIDs::output,    lastOutput); }
                 if (v.hasProperty ("fc"))        setBool (ParamIDs::fc,    (int) v["fc"] != 0);
                 if (v.hasProperty ("os"))        setBool (ParamIDs::os,    (int) v["os"] != 0);
                 if (v.hasProperty ("link"))      setBool (ParamIDs::link,  (int) v["link"] != 0);
@@ -140,14 +140,22 @@ void IridiumAudioProcessorEditor::pushParams()
     auto on = [&] (const char* id) -> const char* {
         return pv (id) > 0.5f ? "1" : "0";
     };
+    // 只在宿主自动化改动参数时才回写数值，避免覆盖用户滚轮/拖拽刚写入的 0.01 步进
+    const float inVal  = pv (ParamIDs::inputGain);
+    const float outVal = pv (ParamIDs::output);
+    const bool  syncIn  = std::abs (inVal  - lastInputGain) > 0.005f;
+    const bool  syncOut = std::abs (outVal - lastOutput)    > 0.005f;
+    if (syncIn)  lastInputGain = inVal;
+    if (syncOut) lastOutput    = outVal;
+
     juce::String js;
-    js << "var S=window._S;"
-       << "S.inputGain=" << juce::String (pv (ParamIDs::inputGain), 1) << ";"
-       << "S.output="    << juce::String (pv (ParamIDs::output),    1) << ";"
-       << "S.fc="        << on (ParamIDs::fc)   << ";"
-       << "S.os="        << on (ParamIDs::os)   << ";"
-       << "S.link="      << on (ParamIDs::link) << ";"
-       << "S.zoom="      << juce::String (proc.uiZoom, 3) << ";"
+    js << "var S=window._S;";
+    if (syncIn)  js << "S.inputGain=" << juce::String (inVal,  2) << ";";
+    if (syncOut) js << "S.output="    << juce::String (outVal, 2) << ";";
+    js << "S.fc="   << on (ParamIDs::fc)   << ";"
+       << "S.os="   << on (ParamIDs::os)   << ";"
+       << "S.link=" << on (ParamIDs::link) << ";"
+       << "S.zoom=" << juce::String (proc.uiZoom, 3) << ";"
        << "window._render()";
     wv->evaluateJavascript (js);
 }
@@ -160,6 +168,7 @@ void IridiumAudioProcessorEditor::pushMeters()
        << "S.inPeak="  << juce::String (safe (proc.getInputPeakDB()),  1) << ";"
        << "S.outPeak=" << juce::String (safe (proc.getOutputPeakDB()), 1) << ";"
        << "S.gr="      << juce::String (safe (std::abs (proc.getGainReductionDB())), 1) << ";"
+       << "S.lufs="    << juce::String (safe (proc.getShortLUFS()), 1) << ";"
        << "window._render()";
     wv->evaluateJavascript (js);
 }

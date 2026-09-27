@@ -36,7 +36,8 @@
   .glow.gold   { width:300px; height:300px; right:170px; top:-160px; background:var(--irid-gold); opacity:.04; }
 
   /* ── 顶栏 ─────────────────────────────────────────────── */
-  #header { position:absolute; top:0; left:0; right:0; height:50px; }
+  #header { position:absolute; top:0; left:0; right:0; height:50px;
+    border-bottom:1px solid var(--edge); background:rgba(8,9,13,.72); }
   #logo { position:absolute; left:24px; top:14px; font-size:17px; font-weight:700; letter-spacing:4px; color:var(--accent); }
   #logo .ver { font-size:11px; font-weight:400; letter-spacing:1px; color:var(--accent-dim); margin-left:9px; vertical-align:2px; }
   #chain { position:absolute; left:50%; transform:translateX(-50%); top:16px; display:flex; align-items:center; gap:10px; }
@@ -58,6 +59,8 @@
     border-radius:5px; overflow:hidden; }
   .meter-fill { position:absolute; left:0; right:0; bottom:0; height:0%;
     background:linear-gradient(0deg, var(--meter-lo) 0%, var(--meter-hi) 100%); transition:height .06s linear; }
+  .meter-track::after { content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(0deg, transparent 0 11px, rgba(143,176,212,.07) 11px 12px); }
   .meter-num { text-align:center; font-size:11px; color:var(--dim); margin-top:6px; font-variant-numeric:tabular-nums; }
 
   #inMeter  { left:56px;  top:82px; }
@@ -68,48 +71,136 @@
   #grMeter .meter-track { height:180px; }
   #grMeter .meter-fill { background:linear-gradient(0deg, var(--gr-lo) 0%, var(--gr-hi) 100%); }
 
-  /* ── 旋钮（Input / Output 等大同款，200px，柔和金属质感） ── */
+  /* 元素装饰：原子（默认静止=完美模型；点击原子核开启动画，彩蛋） */
+  #inAtom { position:absolute; left:82px; top:180px; width:72px; height:72px; pointer-events:none;
+    perspective:260px; transform-style:preserve-3d; }
+
+  /* spin：动画时整体绕竖直轴旋转（原子核不参与） */
+  .spin { position:absolute; left:50%; top:50%; width:0; height:0; transform-style:preserve-3d; }
+
+  /* 轨道：静态 3D 倾斜（rotateX 固定 + 每条不同 rotateY 错开） */
+  .orbit { position:absolute; left:50%; top:50%; width:64px; height:64px; margin:-32px 0 0 -32px;
+    transform-style:preserve-3d; }
+  .o1 { transform:rotateX(70deg) rotateY(0deg); }
+  .o2 { transform:rotateX(70deg) rotateY(60deg); }
+  .o3 { transform:rotateX(70deg) rotateY(120deg); }
+
+  /* path：圆环（动画时才绕自身轴自转） */
+  .path { position:absolute; inset:0; border:1px solid rgba(143,176,212,.55); border-radius:50%;
+    transform-style:preserve-3d; }
+  .o2 .path { border-color:rgba(168,148,208,.58); }
+  .o3 .path { border-color:rgba(203,184,136,.52); }
+
+  /* efix：动画时抵消 path 自转（保持电子高光方向） */
+  .efix { position:absolute; left:50%; top:0; width:6px; height:6px; margin:-3px 0 0 -3px; transform-style:preserve-3d; }
+  /* 静态最佳位置：电子放到各自轨道的最尽头（椭圆长轴端点：右端 / 左上 / 左下） */
+  .o1 .efix { left:63px; top:32px; }           /* 东（3 点钟）→ 屏幕右端 */
+  .o2 .efix { left:2px; top:22px; }            /* 西北 → 屏幕左上方 */
+  .o3 .efix { left:62px; top:42px; }           /* 西南 → 屏幕左下方 */
+
+  /* electron：默认静止 → 反旋转轨道倾斜，正对屏幕的圆球（完美模型） */
+  .electron { position:absolute; left:0; top:0; width:100%; height:100%; border-radius:50%;
+    background:radial-gradient(circle at 34% 30%, #cfe0f2 0%, var(--irid-blue) 55%, #182430); }
+  .o1 .electron { transform:rotateY(0deg) rotateX(-70deg); }
+  .o2 .electron { background:radial-gradient(circle at 34% 30%, #d8cdec 0%, var(--irid-violet) 55%, #241d30);
+    transform:rotateY(-60deg) rotateX(-70deg); }
+  .o3 .electron { background:radial-gradient(circle at 34% 30%, #e5dcc0 0%, var(--irid-gold) 55%, #2c2518);
+    transform:rotateY(-120deg) rotateX(-70deg); }
+
+  .nucleus { position:absolute; left:50%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px; border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, #d3e0f0 0%, #b3c8e0 30%, var(--irid-blue) 52%, #16202f 86%);
+    box-shadow:0 0 8px rgba(143,176,212,.32);
+    pointer-events:auto; cursor:pointer; }
+
+  /* 彩蛋：点击原子核 → 开启动画（#inAtom.on） */
+  #inAtom.on .spin { animation:atomSpin 10s linear infinite; }
+  #inAtom.on .o1 .path { animation:pathSpin 5s linear infinite; }
+  #inAtom.on .o2 .path { animation:pathSpin 4.2s linear -1.4s infinite; }
+  #inAtom.on .o3 .path { animation:pathSpin 3.6s linear -2.2s infinite; }
+  #inAtom.on .o1 .efix { animation:efixPath 5s linear infinite; }
+  #inAtom.on .o2 .efix { animation:efixPath 4.2s linear -1.4s infinite; }
+  #inAtom.on .o3 .efix { animation:efixPath 3.6s linear -2.2s infinite; }
+  #inAtom.on .o1 .electron { animation:efixGlob1 10s linear infinite; }
+  #inAtom.on .o2 .electron { animation:efixGlob2 10s linear infinite; }
+  #inAtom.on .o3 .electron { animation:efixGlob3 10s linear infinite; }
+  #inAtom.on .nucleus { animation:nucleusPulse 3.5s ease-in-out infinite; }
+
+  @keyframes atomSpin { from { transform:rotateY(0deg); } to { transform:rotateY(360deg); } }
+  @keyframes pathSpin { from { transform:rotateZ(0deg); } to { transform:rotateZ(360deg); } }
+  @keyframes efixPath { from { transform:rotateZ(0deg); } to { transform:rotateZ(-360deg); } }
+  @keyframes efixGlob1 { from { transform:rotateY(0deg) rotateX(-70deg) rotateY(0deg); } to { transform:rotateY(0deg) rotateX(-70deg) rotateY(-360deg); } }
+  @keyframes efixGlob2 { from { transform:rotateY(-60deg) rotateX(-70deg) rotateY(0deg); } to { transform:rotateY(-60deg) rotateX(-70deg) rotateY(-360deg); } }
+  @keyframes efixGlob3 { from { transform:rotateY(-120deg) rotateX(-70deg) rotateY(0deg); } to { transform:rotateY(-120deg) rotateX(-70deg) rotateY(-360deg); } }
+  @keyframes nucleusPulse { 0%,100% { box-shadow:0 0 5px rgba(143,176,212,.22); } 50% { box-shadow:0 0 10px rgba(143,176,212,.42); } }
+
+  /* 短期响度 LUFS 数字表（Input 电平下方，参考旋钮：暗底 + 细虹彩描边） */
+  #lufsBox { position:absolute; left:40px; top:356px; width:112px; height:54px; text-align:center;
+    background:rgba(15,16,24,.85); border-radius:8px; }
+  #lufsBox::before { content:""; position:absolute; inset:0; border-radius:8px; padding:1px;
+    background:conic-gradient(from 210deg, var(--irid-blue), var(--irid-violet), var(--irid-gold), var(--irid-green), var(--irid-blue));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite:xor; mask-composite:exclude; opacity:.38; pointer-events:none; }
+  #lufsBox::after { content:""; position:absolute; inset:0; border-radius:8px; pointer-events:none;
+    box-shadow:inset 0 0 14px rgba(143,176,212,.05); }
+  .lufs-cap { font-size:9px; letter-spacing:2px; color:var(--irid-blue); margin-top:7px; }
+  .lufs-val { font-size:20px; font-weight:300; color:var(--accent); font-variant-numeric:tabular-nums; line-height:1.15; }
+
+  /* ── 旋钮（Input / Output，科技感外圈：透明中心融入背景 + 细虹彩环） ── */
   .knob { position:absolute; width:200px; text-align:center; cursor:pointer; }
   .knob-ring { position:relative; width:200px; height:200px; margin:0 auto; border-radius:50%;
     background:
-      radial-gradient(circle at 50% 28%, rgba(54,60,76,.90) 0%, rgba(42,47,60,.92) 30%, rgba(29,32,40,.94) 58%, rgba(16,18,23,.97) 100%),
-      conic-gradient(from 210deg, rgba(159,184,216,.15), rgba(184,168,216,.11), rgba(216,200,168,.14), rgba(168,216,200,.11), rgba(159,184,216,.15));
-    box-shadow:0 8px 24px rgba(0,0,0,.5), 0 0 0 5px #171920, 0 0 0 6px var(--edge),
-               inset 0 2px 2px rgba(255,255,255,.10), inset 0 -8px 16px rgba(0,0,0,.4); }
-  .knob-ring::before { content:""; position:absolute; inset:-3px; border-radius:50%; padding:3px;
+      radial-gradient(circle, transparent 50%, rgba(143,176,212,.05) 72%, transparent 84%),
+      radial-gradient(circle, transparent 68%, rgba(143,176,212,.10) 90%, rgba(143,176,212,.13) 99%, transparent 100%);
+    box-shadow:0 0 20px rgba(143,176,212,.08); }
+  /* 外圈：细虹彩圆环（科技描边） */
+  .knob-ring::before { content:""; position:absolute; inset:0; border-radius:50%; padding:2px;
     background:conic-gradient(from 210deg, var(--irid-blue), var(--irid-violet), var(--irid-gold), var(--irid-green), var(--irid-blue));
     -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite:xor; mask-composite:exclude; opacity:.20; filter:blur(1px); pointer-events:none; }
-  .knob-ring::after { content:""; position:absolute; inset:0; border-radius:50%;
-    background:repeating-conic-gradient(from 0deg, rgba(200,210,224,.30) 0deg .7deg, transparent .7deg 30deg);
-    -webkit-mask:radial-gradient(circle, transparent 74%, #000 75% 82%, transparent 83%);
-    mask:radial-gradient(circle, transparent 74%, #000 75% 82%, transparent 83%);
-    pointer-events:none; }
+    -webkit-mask-composite:xor; mask-composite:exclude; opacity:.55; pointer-events:none; }
+  /* 内圈：淡描边，营造科技层次 */
+  .knob-ring::after { content:""; position:absolute; inset:30px; border-radius:50%;
+    border:1px solid rgba(143,176,212,.12); pointer-events:none; }
+  /* 虹彩值弧（随值扫过，JS 更新 conic 背景） */
+  .knob-arc { position:absolute; inset:6px; border-radius:50%; pointer-events:none; opacity:.5;
+    -webkit-mask:radial-gradient(circle, transparent 78%, #000 79% 86%, transparent 87%);
+    mask:radial-gradient(circle, transparent 78%, #000 79% 86%, transparent 87%); }
+  /* 指针（细针，指向虹彩值弧，随值旋转） */
   .knob-spin { position:absolute; inset:0; transform-origin:center; }
-  .knob-dot { position:absolute; left:50%; top:10px; width:2px; height:20px; margin-left:-1px;
-    background:linear-gradient(180deg, #eef2f8 0%, var(--accent) 100%);
-    border-radius:2px; box-shadow:0 0 9px rgba(200,210,224,.7); }
+  .knob-dot { position:absolute; left:50%; top:16px; width:2px; height:28px; margin-left:-1px;
+    background:linear-gradient(180deg, #c7d0dd 0%, var(--irid-blue) 100%);
+    border-radius:1px; box-shadow:0 0 6px rgba(143,176,212,.5); }
   .knob-val { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
-    font-size:34px; font-weight:300; color:var(--accent); font-variant-numeric:tabular-nums;
-    text-shadow:0 2px 8px rgba(0,0,0,.5); pointer-events:none; }
-  .knob-label { font-size:13px; letter-spacing:3px; color:var(--dim); margin-top:14px; }
+    font-size:36px; font-weight:300; color:#b9c4d4; font-variant-numeric:tabular-nums;
+    text-shadow:0 2px 10px rgba(0,0,0,.55); pointer-events:none; }
+  .knob-label { font-size:13px; letter-spacing:3px; color:var(--dim); margin-top:16px; }
   .knob-sub { font-size:11px; letter-spacing:1px; color:var(--accent-dim); margin-top:6px; }
 
   #inKnob   { left:162px; top:116px; }
   #ceilKnob { left:398px; top:116px; }
 
   /* ── 两旋钮之间的虹彩连接链（Input ⇄ Output） ──────────── */
-  #knobLink { position:absolute; left:360px; top:205px; width:40px; height:22px; pointer-events:none; opacity:.6;
+  #knobLink { position:absolute; left:360px; top:205px; width:40px; height:22px; pointer-events:none;
     background:
       radial-gradient(ellipse 70% 150% at 50% 50%, rgba(160,185,225,.20), transparent 70%),
-      linear-gradient(90deg, transparent, var(--irid-blue) 22%, var(--irid-violet) 50%, var(--irid-gold) 78%, transparent) no-repeat center / 100% 3px; }
-  #knobLink::before { content:""; position:absolute; left:50%; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px;
-    transform:rotate(45deg); border-radius:2px;
-    background:linear-gradient(135deg, #d4dde8, var(--accent));
-    box-shadow:0 0 8px rgba(200,210,224,.55); }
-  #knobLink::after { content:""; position:absolute; left:0; top:50%; width:5px; height:5px; margin-top:-2.5px; border-radius:50%;
-    background:var(--accent);
-    box-shadow:35px 0 0 var(--accent), 0 0 6px rgba(210,222,240,.7), 35px 0 6px rgba(210,222,240,.7); }
+      linear-gradient(90deg, transparent, rgba(143,176,212,.55) 22%, rgba(168,148,208,.55) 50%, rgba(203,184,136,.55) 78%, transparent) no-repeat center / 100% 3px; }
+  /* 星石菱形：上下尖、虹彩切面（暗、突出色彩） */
+  #knobLink::before { content:""; position:absolute; left:50%; top:50%; width:11px; height:11px; margin:-5.5px 0 0 -6.5px;
+    transform:scaleY(1.45) rotate(45deg); border-radius:1px;
+    background:
+      linear-gradient(rgba(10,12,16,.44), rgba(10,12,16,.44)),
+      linear-gradient(225deg, rgba(255,255,255,.10) 0%, rgba(143,176,212,.05) 30%, transparent 58%),
+      linear-gradient(225deg, var(--irid-blue), var(--irid-violet) 50%, var(--irid-gold));
+    border:1px solid rgba(150,175,215,.20);
+    box-shadow:0 0 5px rgba(143,176,212,.10), 0 0 10px rgba(143,176,212,.05); }
+  /* 星石火花：中心四角星 */
+  #knobGem { position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -6px;
+    background:
+      linear-gradient(90deg, transparent 44%, rgba(255,255,255,.30) 50%, transparent 56%),
+      linear-gradient(0deg, transparent 44%, rgba(255,255,255,.30) 50%, transparent 56%);
+    filter:drop-shadow(0 0 2px rgba(220,235,255,.20)); pointer-events:none; }
+  #knobLink::after { content:""; position:absolute; left:0; top:50%; width:4px; height:4px; margin-top:-2px; border-radius:50%;
+    background:var(--irid-blue);
+    box-shadow:35px 0 0 var(--irid-blue), 0 0 5px rgba(143,176,212,.40), 35px 0 5px rgba(143,176,212,.40); }
 
   /* ── v0.0.8 开关按钮（FC / OS / Link） ──────────────────── */
   .tgl { position:absolute; background:transparent; border:1px solid var(--edge); color:var(--dim);
@@ -123,8 +214,8 @@
   #fcBtn   { left:471px; top:380px; width:54px; height:26px; }
   #linkBtn { left:350px; top:290px; width:60px; height:24px; }
 
-  /* 连接链向下延伸的竖线（菱形 → Link 按钮） */
-  #linkLine { position:absolute; left:379px; top:222px; width:2px; height:68px; pointer-events:none; opacity:.55;
+  /* 连接链向下延伸的竖线（菱形之下，顶端被菱形盖住） */
+  #linkLine { position:absolute; left:379px; top:216px; width:2px; height:74px; pointer-events:none; opacity:.55;
     background:linear-gradient(180deg, var(--irid-blue), var(--irid-violet) 55%, var(--irid-gold)); }
 
   /* ── 元素牌（右上） ───────────────────────────────────── */
@@ -183,7 +274,7 @@
 
   <!-- 顶栏 -->
   <div id="header">
-    <div id="logo">IRIDIUM<span class="ver">v0.0.9</span></div>
+    <div id="logo">IRIDIUM<span class="ver">v0.2.0</span></div>
     <div id="chain">
       <span class="chain-node">Input</span>
       <span class="chain-arrow">→</span>
@@ -197,16 +288,31 @@
   <!-- DJAnta 跳转按钮（Input/Output 之间上方） -->
   <button id="djdantaBtn">DJAnta</button>
 
+  <!-- 左：Input 区域元素装饰（原子轨道） -->
+  <div id="inAtom">
+    <span class="spin">
+      <span class="orbit o1"><span class="path"><span class="efix"><span class="electron"></span></span></span></span>
+      <span class="orbit o2"><span class="path"><span class="efix"><span class="electron"></span></span></span></span>
+      <span class="orbit o3"><span class="path"><span class="efix"><span class="electron"></span></span></span></span>
+    </span>
+    <span class="nucleus"></span>
+  </div>
   <!-- 左：输入电平 -->
   <div class="meter" id="inMeter">
     <div class="cap">IN</div>
     <div class="meter-track"><div class="meter-fill" id="inFill"></div></div>
     <div class="meter-num" id="inNum">-60.0</div>
   </div>
+  <!-- 左：输入电平下方 — 短期响度 LUFS 数字表 -->
+  <div id="lufsBox">
+    <div class="lufs-cap">LUFS</div>
+    <div class="lufs-val" id="lufsVal">-∞</div>
+  </div>
 
   <!-- 输入旋钮 -->
   <div class="knob" id="inKnob">
     <div class="knob-ring">
+      <div class="knob-arc" id="inArc"></div>
       <div class="knob-spin" id="inSpin"><div class="knob-dot"></div></div>
       <div class="knob-val" id="inVal">0.0</div>
     </div>
@@ -217,6 +323,7 @@
   <!-- 输出旋钮 -->
   <div class="knob" id="ceilKnob">
     <div class="knob-ring">
+      <div class="knob-arc" id="outArc"></div>
       <div class="knob-spin" id="ceilSpin"><div class="knob-dot"></div></div>
       <div class="knob-val" id="ceilVal">0.0</div>
     </div>
@@ -224,11 +331,12 @@
     <div class="knob-sub">TRIM</div>
   </div>
 
-  <!-- 两旋钮连接链 -->
-  <div id="knobLink"></div>
-
-  <!-- v0.0.8 连接链向下延伸 + Link 按钮 -->
+  <!-- v0.0.8 连接链向下延伸（先渲染，顶端被菱形盖住） -->
   <div id="linkLine"></div>
+
+  <!-- 两旋钮连接链（星石菱形覆盖竖线顶端） -->
+  <div id="knobLink"><span id="knobGem"></span></div>
+
   <button class="tgl" id="linkBtn" title="Link：连接 Input/Output，推起 Input 同时拉低 Output">LINK</button>
 
   <!-- v0.0.8 开关：FC（Final Ceiling）在 Output 下，OS（OverSampling）在 Input 下 -->
@@ -273,11 +381,11 @@
   <div id="manual">
     <button id="manualClose">✕</button>
     <h2>IRIDIUM</h2>
-    <div class="sub">GAIN-FIELD LIMITER · v0.0.9</div>
+    <div class="sub">GAIN-FIELD LIMITER · v0.2.0</div>
     <p><b>限幅原理</b> — 输出 y = f(x)·g(t)：把信号按过零点切成「半周期」，每段增益 = Ceiling ÷ 段峰值（局部极值约束），且只在过零点切换增益（零点锚定，无咔哒）。两段前视使增益提前就位，全程无 attack / release 时间常数。</p>
-    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=硬顶 0dB、峰值精确贴顶；关=软拐角、峰值放出）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。旋钮支持鼠标滚轮微调（每格 0.5 dB）。<b>Ctrl+Z</b> 撤回 / <b>Ctrl+Y</b> 重做。左为输入电平，右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
+    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB，精度 0.01 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=硬顶 0dB、峰值精确贴顶；关=软拐角、峰值放出）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。旋钮支持鼠标滚轮微调（普通每格 0.5 dB，按住 <b>Shift</b> 滚轮 = 0.01 dB 精细、拖动 = 灵敏度 ÷10）。<b>Ctrl+Z</b> 撤回 / <b>Ctrl+Y</b> 重做。左为输入电平（下方为 <b>LUFS</b> 短期响度表），右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
     <p class="egg"><b>元素 · 铱 Ir</b> — 77 号，过渡金属，铂族。密度 22.56 g/cm³（仅次于锇），最耐腐蚀的金属。1803 年 Smithson Tennant 发现，名源自希腊语 <i>iris</i>（彩虹），因铱盐呈虹彩色。曾用于标准米原器与千克原器（铂铱合金）。</p>
-    <p class="egg"><b>彩蛋</b> — 白垩纪–古近纪（K–Pg）边界遍布全球的「铱异常」层，是小行星撞击地球、导致恐龙灭绝的关键证据。</p>
+    <p class="egg"><b>彩蛋</b> — Input 电平旁有一枚铱原子模型：点击原子核可开启动画（三条轨道旋转 + 电子绕行）。右上元素牌另有 K–Pg 边界彩蛋：白垩纪–古近纪边界遍布全球的「铱异常」层，是小行星撞击地球、导致恐龙灭绝的关键证据。</p>
   </div>
 
 <script>
@@ -291,6 +399,7 @@
     inPeak: -60,      // dB
     outPeak: -60,     // dB
     gr: 0,            // dB（衰减量，正）
+    lufs: -70,        // 短期响度 LUFS（dB）
     zoom: 1.0,        // UI 缩放（0.7 … 2.0）
     _openLink: 0,     // DJAnta 链接点击计数（C++ 检测到增加即开浏览器）
     _dragging: false
@@ -306,7 +415,15 @@
     var t = (val - lo) / (hi - lo);          // 0..1
     return -135 + t * 270;                    // -135° … +135°
   }
+  function arcGrad(deg) {
+    var sweep = clamp(deg + 135, 0, 270);    // 从最小位（左下）顺时针扫过的角度
+    if (sweep <= 0.5) return 'transparent';
+    return 'conic-gradient(from 225deg, ' +
+           'var(--irid-blue) 0deg, var(--irid-violet) ' + (sweep * 0.55).toFixed(1) + 'deg, ' +
+           'var(--irid-gold) ' + sweep.toFixed(1) + 'deg, transparent ' + sweep.toFixed(1) + 'deg)';
+  }
   function fmtDB(v) { return (v <= -59.95 ? '-∞' : v.toFixed(1)); }
+  function fmtLufs(v) { return (v <= -70 ? '-∞' : v.toFixed(1)); }
 
   function render() {
     smooth.inPeak  = lerp(smooth.inPeak,  S.inPeak,  0.14);
@@ -315,7 +432,7 @@
 
     var inH  = clamp((smooth.inPeak  + 60) / 60 * 100, 0, 100);
     var outH = clamp((smooth.outPeak + 60) / 60 * 100, 0, 100);
-    var grH  = clamp(smooth.gr / 24 * 100, 0, 100);
+    var grH  = clamp(smooth.gr / 12 * 100, 0, 100);
 
     document.getElementById('inFill').style.height  = inH + '%';
     document.getElementById('outFill').style.height = outH + '%';
@@ -323,12 +440,17 @@
     document.getElementById('inNum').textContent  = fmtDB(S.inPeak);
     document.getElementById('outNum').textContent = fmtDB(S.outPeak);
     document.getElementById('grNum').textContent  = S.gr.toFixed(1);
+    document.getElementById('lufsVal').textContent = fmtLufs(S.lufs);
 
     var dispOutput = S.link ? -S.inputGain : S.output;
-    document.getElementById('inVal').textContent   = S.inputGain.toFixed(1);
-    document.getElementById('ceilVal').textContent = dispOutput.toFixed(1);
-    document.getElementById('inSpin').style.transform   = 'rotate(' + knobDeg(S.inputGain, -24, 24) + 'deg)';
-    document.getElementById('ceilSpin').style.transform = 'rotate(' + knobDeg(dispOutput,  -24, 24)  + 'deg)';
+    document.getElementById('inVal').textContent   = S.inputGain.toFixed(2);
+    document.getElementById('ceilVal').textContent = dispOutput.toFixed(2);
+    var inDeg  = knobDeg(S.inputGain, -24, 24);
+    var outDeg = knobDeg(dispOutput,  -24, 24);
+    document.getElementById('inSpin').style.transform   = 'rotate(' + inDeg + 'deg)';
+    document.getElementById('ceilSpin').style.transform = 'rotate(' + outDeg + 'deg)';
+    document.getElementById('inArc').style.background   = arcGrad(inDeg);
+    document.getElementById('outArc').style.background  = arcGrad(outDeg);
 
     // v0.0.8 开关按钮状态
     document.getElementById('fcBtn').classList.toggle('on', !!S.fc);
@@ -378,7 +500,8 @@
   function bindKnob(el, get, set, lo, hi, sens) {
     el.addEventListener('mousedown', function(e) {
       pushUndo();
-      drag = { startY: e.clientY, startVal: get(), set: set, lo: lo, hi: hi, sens: sens };
+      var fine = e.shiftKey ? 0.1 : 1.0;   // 按住 Shift 微调（灵敏度 ÷10）
+      drag = { startY: e.clientY, startVal: get(), set: set, lo: lo, hi: hi, sens: sens * fine };
       S._dragging = true;
       e.preventDefault();
     });
@@ -391,7 +514,7 @@
       var now = Date.now();
       if (!lastWheelTime || now - lastWheelTime > 500) pushUndo();  // 一次滚动手势记一条
       lastWheelTime = now;
-      var step = 0.5;                                               // 每格 0.5 dB
+      var step = e.shiftKey ? 0.01 : 0.5;                           // 普通 0.5 dB；Shift 滚轮 = 精细 0.01 dB
       var v = clamp(get() + (e.deltaY < 0 ? step : -step), lo, hi);
       set(v); render();
     }, { passive:false });
@@ -409,13 +532,13 @@
 
   bindKnob(document.getElementById('inKnob'),
     function() { return S.inputGain; },
-    function(v) { S.inputGain = Math.round(v * 10) / 10; },
+    function(v) { S.inputGain = Math.round(v * 100) / 100; },
     -24, 24, 0.28);
   bindKnob(document.getElementById('ceilKnob'),
     function() { return S.link ? -S.inputGain : S.output; },
     function(v) {
-      if (S.link) S.inputGain = Math.round(-v * 10) / 10;   // 联动：拉 Output 反向驱动 Input
-      else        S.output   = Math.round(v * 10) / 10;
+      if (S.link) S.inputGain = Math.round(-v * 100) / 100;   // 联动：拉 Output 反向驱动 Input
+      else        S.output   = Math.round(v * 100) / 100;
     },
     -24, 24, 0.14);
 
@@ -459,6 +582,11 @@
     easter.classList.add('show');
     clearTimeout(eggTimer);
     eggTimer = setTimeout(function() { easter.classList.remove('show'); }, 3200);
+  });
+
+  // ── 原子核彩蛋：点击开启 / 关闭动画（默认静止呈现完美模型）────
+  document.querySelector('#inAtom .nucleus').addEventListener('click', function() {
+    document.getElementById('inAtom').classList.toggle('on');
   });
 
   // ── 就绪信号：撤掉 C++ 的启动盖牌 ───────────────────────

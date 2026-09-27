@@ -129,6 +129,8 @@ private:
     int initSyncDelay = 0;
     int syncTick = 0;
     int lastOpenCount = 0;   // DJAnta 跳转去重
+    float lastInputGain = 0.0f;   // 上次 UI→参数同步的输入增益（检测宿主自动化是否改动）
+    float lastOutput    = 0.0f;
 
     void pushParams();   // 参数 → JS（初始 + 周期，反映宿主自动化）
     void pushMeters();   // 表头 → JS（每帧）
