@@ -86,11 +86,11 @@ void IridiumAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     }
 
     // 3) 末级安全限幅（FC 开关控制 headroom）：
-    //    FC 开（默认）headroom≈0（0.0001，听感 0dB 余量）——陡峭平滑拐角替代硬切，THD 更低；
-    //    FC 关 headroom 调大（0.01，~0.087dB）——软拐角、更温和。
+    //    FC 开（默认）headroom=0——硬顶 0dB，峰值精确贴顶（限得更狠）；
+    //    FC 关 headroom 调大（0.5 ≈ +3.5dB）——软拐角，峰值放出来（更开放）。
     const float ceilLin  = 1.0f;                          // Ceiling 固定 0 dB
-    const float headroom = fcOn ? 0.0001f : 0.01f;        // FC 开≈0；FC 关=调大
-    const float tau      = fcOn ? 0.05f   : 0.22f;        // FC 开更陡（平滑拐角）；FC 关更软
+    const float headroom = fcOn ? 0.0f  : 0.5f;           // FC 开=硬顶；FC 关=余量放大
+    const float tau      = fcOn ? 0.05f : 0.5f;           // FC 开更陡；FC 关更软
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
     {
         float* d = buffer.getWritePointer (ch);

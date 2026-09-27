@@ -116,8 +116,8 @@
     font-size:12px; letter-spacing:1px; border-radius:12px; cursor:pointer; text-align:center;
     padding:0; line-height:1; }
   .tgl:hover { color:var(--accent); border-color:var(--accent-dim); }
-  .tgl.on { color:var(--accent); border-color:var(--accent); background:rgba(219,228,240,.08);
-    box-shadow:0 0 8px rgba(160,185,225,.18); }
+  .tgl.on { color:var(--irid-blue); border-color:var(--irid-blue); background:rgba(143,176,212,.07);
+    box-shadow:none; }
 
   #osBtn   { left:235px; top:380px; width:54px; height:26px; }
   #fcBtn   { left:471px; top:380px; width:54px; height:26px; }
@@ -183,7 +183,7 @@
 
   <!-- 顶栏 -->
   <div id="header">
-    <div id="logo">IRIDIUM<span class="ver">v0.0.8</span></div>
+    <div id="logo">IRIDIUM<span class="ver">v0.0.9</span></div>
     <div id="chain">
       <span class="chain-node">Input</span>
       <span class="chain-arrow">→</span>
@@ -232,7 +232,7 @@
   <button class="tgl" id="linkBtn" title="Link：连接 Input/Output，推起 Input 同时拉低 Output">LINK</button>
 
   <!-- v0.0.8 开关：FC（Final Ceiling）在 Output 下，OS（OverSampling）在 Input 下 -->
-  <button class="tgl on" id="fcBtn" title="Final Ceiling：开=峰值精确贴顶（headroom≈0），关=软拐角（余量调大）">FC</button>
+  <button class="tgl on" id="fcBtn" title="Final Ceiling：开=硬顶 0dB（峰值精确贴顶），关=软拐角（峰值放出、更开放）">FC</button>
   <button class="tgl on" id="osBtn" title="OverSampling：开=16× 过采样（抗混叠），关=基频处理（更省 CPU）">OS</button>
 
   <!-- 元素牌（右上） -->
@@ -273,9 +273,9 @@
   <div id="manual">
     <button id="manualClose">✕</button>
     <h2>IRIDIUM</h2>
-    <div class="sub">GAIN-FIELD LIMITER · v0.0.8</div>
+    <div class="sub">GAIN-FIELD LIMITER · v0.0.9</div>
     <p><b>限幅原理</b> — 输出 y = f(x)·g(t)：把信号按过零点切成「半周期」，每段增益 = Ceiling ÷ 段峰值（局部极值约束），且只在过零点切换增益（零点锚定，无咔哒）。两段前视使增益提前就位，全程无 attack / release 时间常数。</p>
-    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=峰值精确贴顶、余量≈0；关=软拐角、余量调大）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。左为输入电平，右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
+    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=硬顶 0dB、峰值精确贴顶；关=软拐角、峰值放出）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。旋钮支持鼠标滚轮微调（每格 0.5 dB）。<b>Ctrl+Z</b> 撤回 / <b>Ctrl+Y</b> 重做。左为输入电平，右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
     <p class="egg"><b>元素 · 铱 Ir</b> — 77 号，过渡金属，铂族。密度 22.56 g/cm³（仅次于锇），最耐腐蚀的金属。1803 年 Smithson Tennant 发现，名源自希腊语 <i>iris</i>（彩虹），因铱盐呈虹彩色。曾用于标准米原器与千克原器（铂铱合金）。</p>
     <p class="egg"><b>彩蛋</b> — 白垩纪–古近纪（K–Pg）边界遍布全球的「铱异常」层，是小行星撞击地球、导致恐龙灭绝的关键证据。</p>
   </div>
@@ -340,17 +340,61 @@
     document.getElementById('zoomPct').textContent = Math.round(S.zoom * 100) + '%';
   }
 
-  // ── 旋钮拖拽 ───────────────────────────────────────────
+  // ── 撤回 / 重做（Ctrl+Z / Ctrl+Y，参数快照栈）────────────
+  var undoStack = [], redoStack = [], lastWheelTime = 0;
+  function snapshot() {
+    return { inputGain: S.inputGain, output: S.output, fc: S.fc, os: S.os, link: S.link };
+  }
+  function applySnap(s) {
+    S.inputGain = s.inputGain; S.output = s.output;
+    S.fc = s.fc; S.os = s.os; S.link = s.link;
+    render();
+  }
+  function pushUndo() {
+    undoStack.push(snapshot());
+    if (undoStack.length > 100) undoStack.shift();
+    redoStack.length = 0;
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    redoStack.push(snapshot());
+    applySnap(undoStack.pop());
+  }
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(snapshot());
+    applySnap(redoStack.pop());
+  }
+  document.addEventListener('keydown', function(e) {
+    var mod = e.ctrlKey || e.metaKey;
+    if (!mod) return;
+    var k = (e.key || '').toLowerCase();
+    if (k === 'z' && !e.shiftKey) { undo(); e.preventDefault(); }
+    else if (k === 'y' || (k === 'z' && e.shiftKey)) { redo(); e.preventDefault(); }
+  });
+
+  // ── 旋钮拖拽 + 滚轮 ─────────────────────────────────────
   var drag = null;
   function bindKnob(el, get, set, lo, hi, sens) {
     el.addEventListener('mousedown', function(e) {
+      pushUndo();
       drag = { startY: e.clientY, startVal: get(), set: set, lo: lo, hi: hi, sens: sens };
       S._dragging = true;
       e.preventDefault();
     });
     el.addEventListener('dblclick', function() {
+      pushUndo();
       set(0); render(); e.preventDefault();
     });
+    el.addEventListener('wheel', function(e) {
+      e.preventDefault();
+      var now = Date.now();
+      if (!lastWheelTime || now - lastWheelTime > 500) pushUndo();  // 一次滚动手势记一条
+      lastWheelTime = now;
+      var step = 0.5;                                               // 每格 0.5 dB
+      var v = clamp(get() + (e.deltaY < 0 ? step : -step), lo, hi);
+      set(v); render();
+    }, { passive:false });
   }
   document.addEventListener('mousemove', function(e) {
     if (!drag) return;
@@ -400,6 +444,7 @@
   // ── v0.0.8 开关按钮（FC / OS / Link）──────────────────────
   function bindToggle(id, key) {
     document.getElementById(id).addEventListener('click', function() {
+      pushUndo();
       S[key] = S[key] ? 0 : 1;
       render();
     });

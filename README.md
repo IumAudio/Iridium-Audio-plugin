@@ -20,7 +20,7 @@
 
 最新安装包见 [Releases](https://github.com/IumAudio/Iridium-Audio-plugin/releases)。
 
-1. 解压 `Iridium-v0.0.8-win-x64.zip`
+1. 解压 `Iridium-v0.0.9-win-x64.zip`
 2. 把 `Iridium.vst3` 整个文件夹复制到 `C:\Program Files\Common Files\VST3\`
 3. 打开 DAW（REAPER / Ableton / Cubase / Studio One 等）扫描新插件即可
 
@@ -33,9 +33,10 @@
 | **INPUT** | 输入增益 ±24 dB |
 | **OUTPUT** | 末级输出微调 Trim ±24 dB（Ceiling 固定 0 dB） |
 
-- **FC**（Output 下）：Final Ceiling，开 = 峰值 headroom≈0，关 = 软拐角余量调大
+- **FC**（Output 下）：Final Ceiling，开 = 硬顶 0dB（峰值精确贴顶），关 = 软拐角、峰值放出
 - **OS**（Input 下）：OverSampling，开 = 16× 过采样，关 = 基频处理（更省 CPU）
 - **LINK**（两旋钮间）：联动 Input/Output，推起 Input 同时拉低 Output
+- 旋钮支持鼠标滚轮微调（每格 0.5 dB）；Ctrl+Z 撤回 / Ctrl+Y 重做
 - 左表：输入电平；右表：输出电平 + GR 增益衰减
 - 底部 − / + ：调节界面缩放
 
