@@ -32,7 +32,8 @@ public:
         bufferSize = (lookahead + maxBlockSize + 64) * 2;
         delayL.assign (bufferSize, 0.0f);
         delayR.assign (bufferSize, 0.0f);
-        grMeterRelease = 1.0f - std::exp (-1.0f / (0.100f * fs));  // GR 表显示释放 ~100ms（仅显示，不影响音频）
+        grMeterRelease = 1.0f - std::exp (-1.0f / (0.400f * fs));  // GR 表显示释放 ~400ms（仅显示，不影响音频）
+        grMeterHold    = (int) std::llround (0.100f * fs);          // 峰值保持 ~100ms，读数贴住实际最大衰减
         reset();
     }
 
@@ -50,6 +51,7 @@ public:
         gainQueue.clear();
         currentGain = 1.0f;
         grPeak = 1.0f;
+        grHoldCount = 0;
         lastGR = 0.0f;
     }
 
@@ -129,9 +131,20 @@ public:
             ++writePos;
             if (writePos >= bufferSize) writePos = 0;
 
-            // ── GR 表：瞬时下降 + 显示缓慢回升（仅显示，不影响音频增益） ──
-            if (currentGain < grPeak) grPeak = currentGain;
-            else grPeak += grMeterRelease * (currentGain - grPeak);
+            // ── GR 表：瞬时下降 + 峰值保持 ~100ms + 缓慢回升 ~400ms（仅显示，不影响音频增益） ──
+            if (currentGain < grPeak)
+            {
+                grPeak = currentGain;      // 下降瞬时跟住，读数贴近实际最大衰减
+                grHoldCount = grMeterHold;
+            }
+            else if (grHoldCount > 0)
+            {
+                --grHoldCount;             // 保持期内不动，避免瞬时回落把读数拉小
+            }
+            else
+            {
+                grPeak += grMeterRelease * (currentGain - grPeak);
+            }
         }
 
         lastGR = 20.0f * std::log10 (grPeak + 1e-20f);
@@ -144,9 +157,11 @@ private:
     float fs = 44100.0f * 16.0f;
     float ceilLin = 1.0f;            // 0 dB（Ceiling 固定）
     float grMeterRelease = 0.0001f;
+    int grMeterHold = 0;
     float segPeak = 0.0f;
     float currentGain = 1.0f;
     float grPeak = 1.0f, lastGR = 0.0f;
+    int grHoldCount = 0;
     int prevMidSign = 0, prevOutMidSign = 0;
     bool firstSegment = true;
     int lookahead = 0, bufferSize = 0, writePos = 0;

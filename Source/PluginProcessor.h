@@ -12,6 +12,9 @@ namespace ParamIDs
     inline constexpr const char* inputGain = "inputGain";
     inline constexpr const char* output    = "output";
     inline constexpr const char* reduction = "reduction";
+    inline constexpr const char* fc        = "fc";       // Final Ceiling 开关
+    inline constexpr const char* os        = "os";       // OverSampling 开关
+    inline constexpr const char* link      = "link";     // Input⇄Output 联动开关
 }
 
 // ─── Plugin Processor ───────────────────────────────────────────────────────
@@ -50,6 +53,11 @@ public:
                                                                .withLabel ("dB")
                                                                .withCategory (AudioProcessorParameter::inputMeter)
                                                                .withAutomatable (false)));
+
+        // v0.0.8 三个开关：Final Ceiling / OverSampling / Link（默认 FC=开、OS=开、Link=关）
+        layout.add (std::make_unique<AudioParameterBool> (ParamIDs::fc,   "Final Ceiling", true));
+        layout.add (std::make_unique<AudioParameterBool> (ParamIDs::os,   "OverSampling",  true));
+        layout.add (std::make_unique<AudioParameterBool> (ParamIDs::link, "Link",          false));
 
         return layout;
     }
@@ -94,8 +102,8 @@ public:
     bool producesMidi() const override   { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
-    // 供编辑器读取当前增益衰减（dB，≤0）
-    float getGainReductionDB() const { return limiter.getGainReductionDB(); }
+    // 供编辑器读取当前增益衰减（dB，≤0；取活跃限幅器（OS 开/关）的值）
+    float getGainReductionDB() const { return lastGRDB; }
 
     // 供编辑器读取输入 / 输出峰值电平（dB，表头显示）
     float getInputPeakDB()  const { return inPeakDB; }
@@ -117,13 +125,22 @@ private:
     // 16× 过采样（factor=4 → 2^4=16）：抗混叠，非真峰值检测
     juce::dsp::Oversampling<float> oversampling { 2, 4,
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, false };
-    IridiumLimiter limiter;
+    IridiumLimiter limiter;        // 16× 过采样域（OS 开）
+    IridiumLimiter limiterBase;    // 基频域（OS 关）
 
     juce::AudioParameterFloat* inputGainParam = nullptr;
     juce::AudioParameterFloat* outputParam    = nullptr;
     juce::AudioParameterFloat* reductionParam = nullptr;
+    juce::AudioParameterBool*  fcParam   = nullptr;
+    juce::AudioParameterBool*  osParam   = nullptr;
+    juce::AudioParameterBool*  linkParam = nullptr;
 
     double baseSampleRate = 48000.0;
+
+    int  osLatency       = 0;       // 过采样滤波器延迟（OS 开时才有）
+    int  baseLookLatency = 0;       // 50ms 前视（基频样本，两种模式相同）
+    bool lastOSState     = true;    // 上帧 OS 状态（检测切换 → 更新延迟上报）
+    float lastGRDB       = 0.0f;    // 当前活跃限幅器的 GR（供编辑器）
 
     float inPeakDB  = -60.0f;
     float outPeakDB = -60.0f;

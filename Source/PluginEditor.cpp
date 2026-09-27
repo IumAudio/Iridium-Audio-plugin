@@ -100,8 +100,18 @@ void IridiumAudioProcessorEditor::timerCallback()
                     if (std::abs (x->getValue() - nrm) > 0.001f)
                         x->setValueNotifyingHost (nrm);
                 };
+                auto setBool = [&] (const char* id, bool b) {
+                    auto* x = proc.apvts.getParameter (id);
+                    if (x == nullptr) return;
+                    float target = b ? 1.0f : 0.0f;
+                    if (std::abs (x->getValue() - target) > 0.001f)
+                        x->setValueNotifyingHost (target);
+                };
                 if (v.hasProperty ("inputGain")) set (ParamIDs::inputGain, safeV (v["inputGain"]));
                 if (v.hasProperty ("output"))    set (ParamIDs::output,    safeV (v["output"]));
+                if (v.hasProperty ("fc"))        setBool (ParamIDs::fc,    (int) v["fc"] != 0);
+                if (v.hasProperty ("os"))        setBool (ParamIDs::os,    (int) v["os"] != 0);
+                if (v.hasProperty ("link"))      setBool (ParamIDs::link,  (int) v["link"] != 0);
                 if (v.hasProperty ("zoom")) {
                     float z = safeV (v["zoom"]);
                     if (std::isfinite (z) && std::abs (z - proc.uiZoom) > 0.005f) {
@@ -127,10 +137,16 @@ void IridiumAudioProcessorEditor::pushParams()
         auto* p = proc.apvts.getRawParameterValue (id);
         return p != nullptr ? p->load() : 0.0f;
     };
+    auto on = [&] (const char* id) -> const char* {
+        return pv (id) > 0.5f ? "1" : "0";
+    };
     juce::String js;
     js << "var S=window._S;"
        << "S.inputGain=" << juce::String (pv (ParamIDs::inputGain), 1) << ";"
        << "S.output="    << juce::String (pv (ParamIDs::output),    1) << ";"
+       << "S.fc="        << on (ParamIDs::fc)   << ";"
+       << "S.os="        << on (ParamIDs::os)   << ";"
+       << "S.link="      << on (ParamIDs::link) << ";"
        << "S.zoom="      << juce::String (proc.uiZoom, 3) << ";"
        << "window._render()";
     wv->evaluateJavascript (js);

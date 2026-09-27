@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # ─── Project ───────────────────────────────────────────────────────────────
-project(Iridium VERSION 0.0.7 LANGUAGES CXX)  # v0.0.7 — clip 斜率更陡 + 旋钮虹彩层次 + 旋钮间连接链
+project(Iridium VERSION 0.0.8 LANGUAGES CXX)  # v0.0.8 — FC/OS/Link 开关 + headroom≈0 + THD 优化
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
