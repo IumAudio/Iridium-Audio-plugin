@@ -22,7 +22,7 @@
 
 最新安装包见 [Releases](https://github.com/IumAudio/Iridium-Audio-plugin/releases)。
 
-1. 解压 `Iridium-v0.0.9-win-x64.zip`
+1. 解压 `Iridium-v0.1.0-win-x64.zip`
 2. 把 `Iridium.vst3` 整个文件夹复制到 `C:\Program Files\Common Files\VST3\`
 3. 打开 DAW（REAPER / Ableton / Cubase / Studio One 等）扫描新插件即可
 

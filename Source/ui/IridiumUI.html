@@ -274,7 +274,7 @@
 
   <!-- 顶栏 -->
   <div id="header">
-    <div id="logo">IRIDIUM<span class="ver">v0.2.0</span></div>
+    <div id="logo">IRIDIUM<span class="ver">v0.1.0</span></div>
     <div id="chain">
       <span class="chain-node">Input</span>
       <span class="chain-arrow">→</span>
@@ -381,7 +381,7 @@
   <div id="manual">
     <button id="manualClose">✕</button>
     <h2>IRIDIUM</h2>
-    <div class="sub">GAIN-FIELD LIMITER · v0.2.0</div>
+    <div class="sub">GAIN-FIELD LIMITER · v0.1.0</div>
     <p><b>限幅原理</b> — 输出 y = f(x)·g(t)：把信号按过零点切成「半周期」，每段增益 = Ceiling ÷ 段峰值（局部极值约束），且只在过零点切换增益（零点锚定，无咔哒）。两段前视使增益提前就位，全程无 attack / release 时间常数。</p>
     <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB，精度 0.01 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=硬顶 0dB、峰值精确贴顶；关=软拐角、峰值放出）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。旋钮支持鼠标滚轮微调（普通每格 0.5 dB，按住 <b>Shift</b> 滚轮 = 0.01 dB 精细、拖动 = 灵敏度 ÷10）。<b>Ctrl+Z</b> 撤回 / <b>Ctrl+Y</b> 重做。左为输入电平（下方为 <b>LUFS</b> 短期响度表），右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
     <p class="egg"><b>元素 · 铱 Ir</b> — 77 号，过渡金属，铂族。密度 22.56 g/cm³（仅次于锇），最耐腐蚀的金属。1803 年 Smithson Tennant 发现，名源自希腊语 <i>iris</i>（彩虹），因铱盐呈虹彩色。曾用于标准米原器与千克原器（铂铱合金）。</p>
