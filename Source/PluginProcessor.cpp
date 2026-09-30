@@ -28,33 +28,17 @@ void IridiumAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     limiter.prepare (osRate, maxOsBlock, 50.0);              // OS 开：16× 域（前视 50ms）
     limiterBase.prepare (sampleRate, samplesPerBlock, 50.0); // OS 关：基频域（前视 50ms）
+    finalCeiling.prepare (sampleRate, samplesPerBlock);      // Final Ceiling：基频域 2ms 前视 + 独立 16× 检测
+    loudness.prepare (sampleRate);                           // LUFS K加权按宿主采样率重算
 
-    // 短期响度 LUFS：K加权（BS.1770 48kHz 标准系数）+ 400ms 均方块 + 3s 滑窗
-    {
-        using C = juce::dsp::IIR::Coefficients<float>;
-        // 阶1 高频搁架（+4dB @>1.5kHz）与 阶2 高通（@38Hz）——48kHz 系数（其它采样率近似）
-        k1L.coefficients = new C (1.53512485958697f, -2.69169618940638f, 1.19839281085285f,
-                                  1.0f, -1.69065929318241f, 0.73248077421585f);
-        k1R.coefficients = k1L.coefficients;
-        k2L.coefficients = new C (1.0f, -2.0f, 1.0f,
-                                  1.0f, -1.99004745483398f, 0.99007225036621f);
-        k2R.coefficients = k2L.coefficients;
-        juce::dsp::ProcessSpec specM { sampleRate, (juce::uint32) samplesPerBlock, 1 };
-        k1L.prepare (specM); k1R.prepare (specM); k2L.prepare (specM); k2R.prepare (specM);
-        lufsBlockLen = std::max (1, (int) std::llround (0.4 * sampleRate));
-        lufsBlockCnt = 0;
-        lufsBlockAcc = 0.0;
-        lufsBlocks.clear();
-        shortLufs = -70.0f;
-    }
-
-    // 延迟 = 50ms 前视（两模式相同，基频样本）+ 过采样滤波器延迟（仅 OS 开）
+    // 延迟 = 50ms 前视（基频样本）+ OS 过采样滤波器延迟（仅 OS 开）+ Final Ceiling 2ms 前视（固定）
     osLatency       = (int) oversampling.getLatencyInSamples();
     baseLookLatency = limiter.getLatencySamples() / (int) osFactor;
+    fcLatency       = finalCeiling.getLatencySamples();
 
     const bool osOn = osParam != nullptr && osParam->get();
     lastOSState = osOn;
-    setLatencySamples (osOn ? (osLatency + baseLookLatency) : baseLookLatency);
+    setLatencySamples ((osOn ? (osLatency + baseLookLatency) : baseLookLatency) + fcLatency);
     // Ceiling 固定 0 dB：限幅器内部目标恒定；Output 是末级 trim（后置增益）。
 }
 
@@ -73,7 +57,7 @@ void IridiumAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     if (osOn != lastOSState)
     {
         lastOSState = osOn;
-        setLatencySamples (osOn ? (osLatency + baseLookLatency) : baseLookLatency);
+        setLatencySamples ((osOn ? (osLatency + baseLookLatency) : baseLookLatency) + fcLatency);
     }
 
     // 1) 输入增益
@@ -104,32 +88,14 @@ void IridiumAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         }
     }
 
-    // 3) 末级软拐角限幅（逐样本 waveshape：硬顶在 Ceiling；FC 关 headroom 放大 → 更开放）
-    //    FC 开 headroom=0 → 精确硬顶 0 dB；FC 关 headroom=0.5（≈+3.5dB）→ 软拐角、峰值放出。
-    const float ceilLin  = 1.0f;                          // Ceiling 固定 0 dB
-    const float headroom = fcOn ? 0.0f  : 0.5f;           // FC 开=硬顶；FC 关=余量放大
-    const float tau      = fcOn ? 0.05f : 0.5f;           // FC 开更陡；FC 关更软
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-    {
-        float* d = buffer.getWritePointer (ch);
-        for (int s = 0; s < buffer.getNumSamples(); ++s)
-        {
-            const float x = d[s];
-            const float a = std::fabs (x);
-            if (a > ceilLin)
-            {
-                const float sign   = (x > 0.0f) ? 1.0f : -1.0f;
-                const float excess = a - ceilLin;
-                d[s] = sign * (ceilLin + headroom * (1.0f - std::exp (-excess / tau)));
-            }
-        }
-    }
-
-    // 4) Output trim（末级后置增益；Link 开时 = −Input，即推起 Input 同时拉低 Output）
+    // 3) Output trim（后置增益；Link 开时 = −Input，即推起 Input 同时拉低 Output）
     const float inDB      = inputGainParam->get();
     const float outDB     = linkOn ? -inDB : outputParam->get();
     const float outputLin = std::pow (10.0f, outDB / 20.0f);
     buffer.applyGain (outputLin);
+
+    // 4) Final Ceiling：最终 0 dBFS 真峰值天花板（FC 开=16× 真峰值 / 关=样本峰值；独立于 OS）
+    finalCeiling.process (buffer, fcOn);
 
     // 输出峰值表
     {
@@ -145,25 +111,10 @@ void IridiumAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     const float grAmount = juce::jlimit (0.0f, 60.0f, -grDB);      // 正 dB = 衰减量
     reductionParam->setValueNotifyingHost (reductionParam->convertTo0to1 (grAmount));
 
-    // 6) 短期响度 LUFS（输出信号：K加权 → 400ms 均方块 → 3s 滑窗 → LUFS）
+    // 6) 短期响度 LUFS（输出信号，K加权按宿主采样率重算）
     {
-        float* lch = buffer.getWritePointer (0);
-        float* rch = buffer.getNumChannels() > 1 ? buffer.getWritePointer (1) : lch;
-        for (int n = 0; n < buffer.getNumSamples(); ++n)
-        {
-            const float yl = k2L.processSample (k1L.processSample (lch[n]));
-            const float yr = k2R.processSample (k1R.processSample (rch[n]));
-            lufsBlockAcc += 0.5 * ((double) yl * yl + (double) yr * yr);   // L+R 声道均值
-            if (++lufsBlockCnt >= lufsBlockLen)
-            {
-                lufsBlocks.push_back (lufsBlockAcc / (double) lufsBlockCnt);
-                if ((int) lufsBlocks.size() > 8) lufsBlocks.pop_front();    // 8×400ms ≈ 3.2s
-                double sum = 0.0;
-                for (double b : lufsBlocks) sum += b;
-                shortLufs = (float) (-0.691 + 10.0 * std::log10 (sum / (double) lufsBlocks.size() + 1e-12));
-                lufsBlockAcc = 0.0;
-                lufsBlockCnt = 0;
-            }
-        }
+        const float* lch = buffer.getReadPointer (0);
+        const float* rch = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : lch;
+        loudness.process (lch, rch, buffer.getNumSamples());
     }
 }

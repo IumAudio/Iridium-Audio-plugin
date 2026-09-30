@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # ─── Project ───────────────────────────────────────────────────────────────
-project(Iridium VERSION 0.1.0 LANGUAGES CXX)  # v0.1.0 — LUFS 表 + 原子动画彩蛋 + 0.01dB 精度
+project(Iridium VERSION 0.1.1 LANGUAGES CXX)  # v0.1.1 — Final Ceiling 真峰值 + LUFS 采样率修复 + UI 手感
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -144,9 +144,14 @@
     box-shadow:inset 0 0 14px rgba(143,176,212,.05); }
   .lufs-cap { font-size:9px; letter-spacing:2px; color:var(--irid-blue); margin-top:7px; }
   .lufs-val { font-size:20px; font-weight:300; color:var(--accent); font-variant-numeric:tabular-nums; line-height:1.15; }
+  /* 采样率读数（LUFS 表下方） */
+  #sampleRate { position:absolute; left:40px; top:422px; width:112px; text-align:center;
+    color:var(--dim); font-size:11px; font-variant-numeric:tabular-nums; }
 
   /* ── 旋钮（Input / Output，科技感外圈：透明中心融入背景 + 细虹彩环） ── */
   .knob { position:absolute; width:200px; text-align:center; cursor:pointer; }
+  .knob:focus { outline:none; }
+  .knob:focus .knob-ring::before { opacity:.85; }   /* 聚焦时虹彩环提亮，提示可键盘操作 */
   .knob-ring { position:relative; width:200px; height:200px; margin:0 auto; border-radius:50%;
     background:
       radial-gradient(circle, transparent 50%, rgba(143,176,212,.05) 72%, transparent 84%),
@@ -172,6 +177,13 @@
   .knob-val { position:absolute; left:0; right:0; top:50%; transform:translateY(-50%);
     font-size:36px; font-weight:300; color:#b9c4d4; font-variant-numeric:tabular-nums;
     text-shadow:0 2px 10px rgba(0,0,0,.55); pointer-events:none; }
+  /* 数值键盘输入（Ctrl+双击 呼出；普通单击/双击数字都不触发，数字本身不可点） */
+  .knob-edit { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    width:150px; text-align:center; font-size:36px; font-weight:300; color:#b9c4d4;
+    background:transparent; border:none; outline:none; padding:0; font-family:inherit;
+    font-variant-numeric:tabular-nums; text-shadow:0 2px 10px rgba(0,0,0,.55);
+    display:none; caret-color:var(--irid-blue); }
+  .knob-edit.show { display:block; }
   .knob-label { font-size:13px; letter-spacing:3px; color:var(--dim); margin-top:16px; }
   .knob-sub { font-size:11px; letter-spacing:1px; color:var(--accent-dim); margin-top:6px; }
 
@@ -274,7 +286,7 @@
 
   <!-- 顶栏 -->
   <div id="header">
-    <div id="logo">IRIDIUM<span class="ver">v0.1.0</span></div>
+    <div id="logo">IRIDIUM<span class="ver">v0.1.1</span></div>
     <div id="chain">
       <span class="chain-node">Input</span>
       <span class="chain-arrow">→</span>
@@ -308,6 +320,7 @@
     <div class="lufs-cap">LUFS</div>
     <div class="lufs-val" id="lufsVal">-∞</div>
   </div>
+  <div id="sampleRate">SR —</div>
 
   <!-- 输入旋钮 -->
   <div class="knob" id="inKnob">
@@ -315,6 +328,7 @@
       <div class="knob-arc" id="inArc"></div>
       <div class="knob-spin" id="inSpin"><div class="knob-dot"></div></div>
       <div class="knob-val" id="inVal">0.0</div>
+      <input class="knob-edit" id="inEdit" type="text" inputmode="decimal" spellcheck="false" autocomplete="off">
     </div>
     <div class="knob-label">INPUT</div>
     <div class="knob-sub">±24 dB</div>
@@ -326,6 +340,7 @@
       <div class="knob-arc" id="outArc"></div>
       <div class="knob-spin" id="ceilSpin"><div class="knob-dot"></div></div>
       <div class="knob-val" id="ceilVal">0.0</div>
+      <input class="knob-edit" id="ceilEdit" type="text" inputmode="decimal" spellcheck="false" autocomplete="off">
     </div>
     <div class="knob-label">OUTPUT</div>
     <div class="knob-sub">TRIM</div>
@@ -340,7 +355,7 @@
   <button class="tgl" id="linkBtn" title="Link：连接 Input/Output，推起 Input 同时拉低 Output">LINK</button>
 
   <!-- v0.0.8 开关：FC（Final Ceiling）在 Output 下，OS（OverSampling）在 Input 下 -->
-  <button class="tgl on" id="fcBtn" title="Final Ceiling：开=硬顶 0dB（峰值精确贴顶），关=软拐角（峰值放出、更开放）">FC</button>
+  <button class="tgl on" id="fcBtn" title="Final Ceiling：开=16× 真峰值限幅（上限 0 dBFS 真峰值），关=样本峰值安全（上限 0 dBFS）">FC</button>
   <button class="tgl on" id="osBtn" title="OverSampling：开=16× 过采样（抗混叠），关=基频处理（更省 CPU）">OS</button>
 
   <!-- 元素牌（右上） -->
@@ -381,9 +396,9 @@
   <div id="manual">
     <button id="manualClose">✕</button>
     <h2>IRIDIUM</h2>
-    <div class="sub">GAIN-FIELD LIMITER · v0.1.0</div>
+    <div class="sub">GAIN-FIELD LIMITER · v0.1.1</div>
     <p><b>限幅原理</b> — 输出 y = f(x)·g(t)：把信号按过零点切成「半周期」，每段增益 = Ceiling ÷ 段峰值（局部极值约束），且只在过零点切换增益（零点锚定，无咔哒）。两段前视使增益提前就位，全程无 attack / release 时间常数。</p>
-    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB，精度 0.01 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=硬顶 0dB、峰值精确贴顶；关=软拐角、峰值放出）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。旋钮支持鼠标滚轮微调（普通每格 0.5 dB，按住 <b>Shift</b> 滚轮 = 0.01 dB 精细、拖动 = 灵敏度 ÷10）。<b>Ctrl+Z</b> 撤回 / <b>Ctrl+Y</b> 重做。左为输入电平（下方为 <b>LUFS</b> 短期响度表），右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
+    <p><b>控制</b> — <small>INPUT</small> 输入增益（±24 dB，精度 0.01 dB）；<small>OUTPUT</small> 末级输出微调 Trim（±24 dB，Ceiling 固定 0 dB）。<small>FC</small> Final Ceiling（开=16× 真峰值限幅、上限 0 dBFS 真峰值；关=样本峰值安全、上限 0 dBFS）。<small>OS</small> OverSampling（开=16× 过采样抗混叠；关=基频处理、更省 CPU；与 FC 独立、互不影响）。<small>LINK</small> 连接 Input/Output（推起 Input 同时拉低 Output）。旋钮支持鼠标滚轮微调（普通每格 0.5 dB，按住 <b>Shift</b> 滚轮 = 0.01 dB 精细、拖动 = 灵敏度 ÷10）。按住 <b>Ctrl</b> 双击旋钮数值 = 键盘直接输入（普通单击/双击不触发）。<b>Ctrl+Z</b> 撤回 / <b>Ctrl+Y</b> 重做。左为输入电平（下方为 <b>LUFS</b> 短期响度表），右为输出电平与 GR 增益衰减。底部 − / + 调节界面尺寸。</p>
     <p class="egg"><b>元素 · 铱 Ir</b> — 77 号，过渡金属，铂族。密度 22.56 g/cm³（仅次于锇），最耐腐蚀的金属。1803 年 Smithson Tennant 发现，名源自希腊语 <i>iris</i>（彩虹），因铱盐呈虹彩色。曾用于标准米原器与千克原器（铂铱合金）。</p>
     <p class="egg"><b>彩蛋</b> — Input 电平旁有一枚铱原子模型：点击原子核可开启动画（三条轨道旋转 + 电子绕行）。右上元素牌另有 K–Pg 边界彩蛋：白垩纪–古近纪边界遍布全球的「铱异常」层，是小行星撞击地球、导致恐龙灭绝的关键证据。</p>
   </div>
@@ -400,6 +415,7 @@
     outPeak: -60,     // dB
     gr: 0,            // dB（衰减量，正）
     lufs: -70,        // 短期响度 LUFS（dB）
+    sampleRate: 0,    // 宿主采样率（Hz，C++ 写入，0 = 未知）
     zoom: 1.0,        // UI 缩放（0.7 … 2.0）
     _openLink: 0,     // DJAnta 链接点击计数（C++ 检测到增加即开浏览器）
     _dragging: false
@@ -441,6 +457,8 @@
     document.getElementById('outNum').textContent = fmtDB(S.outPeak);
     document.getElementById('grNum').textContent  = S.gr.toFixed(1);
     document.getElementById('lufsVal').textContent = fmtLufs(S.lufs);
+    document.getElementById('sampleRate').textContent =
+      S.sampleRate > 0 ? (S.sampleRate / 1000).toFixed(3).replace(/\.?0+$/, '') + ' kHz' : 'SR —';
 
     var dispOutput = S.link ? -S.inputGain : S.output;
     document.getElementById('inVal').textContent   = S.inputGain.toFixed(2);
@@ -463,7 +481,7 @@
   }
 
   // ── 撤回 / 重做（Ctrl+Z / Ctrl+Y，参数快照栈）────────────
-  var undoStack = [], redoStack = [], lastWheelTime = 0;
+  var undoStack = [], redoStack = [], lastWheelTime = 0, lastKeyTime = 0;
   function snapshot() {
     return { inputGain: S.inputGain, output: S.output, fc: S.fc, os: S.os, link: S.link };
   }
@@ -497,15 +515,19 @@
 
   // ── 旋钮拖拽 + 滚轮 ─────────────────────────────────────
   var drag = null;
-  function bindKnob(el, get, set, lo, hi, sens) {
+  function bindKnob(el, get, set, lo, hi, sens, enterEdit) {
+    el.tabIndex = 0;   // 可聚焦，支持键盘方向键调节
     el.addEventListener('mousedown', function(e) {
+      if (e.ctrlKey) { e.preventDefault(); return; }  // Ctrl+点击不拖拽（留给 Ctrl+双击输入）
+      el.focus();
       pushUndo();
       var fine = e.shiftKey ? 0.1 : 1.0;   // 按住 Shift 微调（灵敏度 ÷10）
       drag = { startY: e.clientY, startVal: get(), set: set, lo: lo, hi: hi, sens: sens * fine };
       S._dragging = true;
       e.preventDefault();
     });
-    el.addEventListener('dblclick', function() {
+    el.addEventListener('dblclick', function(e) {
+      if (e.ctrlKey && enterEdit) { enterEdit(); e.preventDefault(); return; }  // Ctrl+双击 → 键盘输入
       pushUndo();
       set(0); render(); e.preventDefault();
     });
@@ -518,6 +540,16 @@
       var v = clamp(get() + (e.deltaY < 0 ? step : -step), lo, hi);
       set(v); render();
     }, { passive:false });
+    el.addEventListener('keydown', function(e) {
+      var dir = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[e.key];
+      if (!dir && e.key !== 'Home') return;
+      e.preventDefault();
+      var now = Date.now();
+      if (!lastKeyTime || now - lastKeyTime > 500) pushUndo();      // 连续按键记一条
+      lastKeyTime = now;
+      var v = (e.key === 'Home') ? 0 : clamp(get() + dir * (e.shiftKey ? 0.01 : 0.5), lo, hi);
+      set(v); render();
+    });
   }
   document.addEventListener('mousemove', function(e) {
     if (!drag) return;
@@ -530,17 +562,62 @@
     if (drag) { drag = null; S._dragging = false; }
   });
 
+  // 数值键盘输入：Ctrl+双击呼出（普通单击/双击数字都不触发）
+  function bindNumeric(editEl, valEl, get, set, lo, hi) {
+    var editing = false;
+    function finish(ok) {
+      if (!editing) return;
+      editing = false;
+      editEl.classList.remove('show');
+      valEl.style.display = '';
+      editEl.blur();
+      if (ok) {
+        var v = parseFloat(editEl.value);
+        if (isFinite(v)) { set(clamp(v, lo, hi)); render(); }
+      }
+    }
+    editEl.addEventListener('keydown', function(e) {
+      e.stopPropagation();                       // 输入时屏蔽 Ctrl+Z/Y 等全局快捷键
+      if (e.key === 'Enter') finish(true);
+      else if (e.key === 'Escape') finish(false);
+    });
+    editEl.addEventListener('blur', function() { finish(true); });
+    editEl.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    editEl.addEventListener('wheel', function(e) { e.stopPropagation(); });
+    return function enter() {
+      pushUndo();                                // 记录编辑前状态，Ctrl+Z 可撤回本次输入
+      editing = true;
+      editEl.value = get().toFixed(2);
+      valEl.style.display = 'none';
+      editEl.classList.add('show');
+      editEl.focus();
+      editEl.select();
+    };
+  }
+
+  var enterIn = bindNumeric(document.getElementById('inEdit'), document.getElementById('inVal'),
+    function() { return S.inputGain; },
+    function(v) { S.inputGain = Math.round(v * 100) / 100; },
+    -24, 24);
+  var enterOut = bindNumeric(document.getElementById('ceilEdit'), document.getElementById('ceilVal'),
+    function() { return S.link ? -S.inputGain : S.output; },
+    function(v) {
+      if (S.link) S.inputGain = Math.round(-v * 100) / 100;
+      else        S.output   = Math.round(v * 100) / 100;
+    },
+    -24, 24);
+
   bindKnob(document.getElementById('inKnob'),
     function() { return S.inputGain; },
     function(v) { S.inputGain = Math.round(v * 100) / 100; },
-    -24, 24, 0.28);
+    -24, 24, 0.28, enterIn);
   bindKnob(document.getElementById('ceilKnob'),
     function() { return S.link ? -S.inputGain : S.output; },
     function(v) {
       if (S.link) S.inputGain = Math.round(-v * 100) / 100;   // 联动：拉 Output 反向驱动 Input
       else        S.output   = Math.round(v * 100) / 100;
     },
-    -24, 24, 0.14);
+    -24, 24, 0.14, enterOut);
 
   // ── 尺寸调节 ───────────────────────────────────────────
   function setZoom(z) {

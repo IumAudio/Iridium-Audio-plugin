@@ -4,6 +4,8 @@
 #include <cmath>
 #include <deque>
 #include "dsp/IridiumLimiter.h"
+#include "dsp/FinalCeiling.h"
+#include "dsp/ShortTermLoudness.h"
 
 class IridiumAudioProcessorEditor;
 
@@ -111,7 +113,7 @@ public:
     float getOutputPeakDB() const { return outPeakDB; }
 
     // 供编辑器读取短期响度（LUFS，dB；测输出信号）
-    float getShortLUFS() const { return shortLufs; }
+    float getShortLUFS() const { return loudness.getLUFS(); }
 
     // UI 缩放（1.0 = 基准 760×500；随宿主状态持久化）
     float uiZoom = 1.0f;
@@ -131,14 +133,10 @@ private:
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, false };
     IridiumLimiter limiter;        // 16× 过采样域（OS 开）
     IridiumLimiter limiterBase;    // 基频域（OS 关）
+    FinalCeiling finalCeiling;     // Final Ceiling 真峰值天花板（FC 开关，独立于 OS）
 
-    // 短期响度 LUFS（BS.1770 K加权 + 400ms 均方块 + 3s 滑窗，测输出）
-    juce::dsp::IIR::Filter<float> k1L, k1R, k2L, k2R;   // K加权两阶，每声道
-    int    lufsBlockLen = 0;         // 400ms 块样本数
-    int    lufsBlockCnt = 0;         // 当前块累计样本
-    double lufsBlockAcc = 0.0;       // 当前块 K加权均方和（L+R 均值）
-    std::deque<double> lufsBlocks;   // 最近 8 块均方（≈3.2s 滑窗）
-    float  shortLufs    = -70.0f;    // 当前短期 LUFS（dB）
+    // 短期响度 LUFS（BS.1770 K加权按宿主采样率重算 + 严格 3s 滑窗，测输出）
+    ShortTermLoudness loudness;
 
     juce::AudioParameterFloat* inputGainParam = nullptr;
     juce::AudioParameterFloat* outputParam    = nullptr;
@@ -151,6 +149,7 @@ private:
 
     int  osLatency       = 0;       // 过采样滤波器延迟（OS 开时才有）
     int  baseLookLatency = 0;       // 50ms 前视（基频样本，两种模式相同）
+    int  fcLatency       = 0;       // Final Ceiling 2ms 前视（基频样本，FC 开关不改变）
     bool lastOSState     = true;    // 上帧 OS 状态（检测切换 → 更新延迟上报）
     float lastGRDB       = 0.0f;    // 当前活跃限幅器的 GR（供编辑器）
 

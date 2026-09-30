@@ -13,7 +13,7 @@
  *   - 增益只在过零点切换（零点锚定：x=0 处 y=x·g=0，无咔哒）；
  *   - 前视 = 一个半周期（固定 50ms 缓冲覆盖「两个半周期」）；
  *   - 增益切换为纯阶跃（v0.0.2 抹掉残留 release：无任何平滑 / attack / release）；
- *   - 峰值精确贴顶，微小过冲由处理器基频域 Final Ceiling 兜底。
+ *   - 峰值精确贴顶，微小过冲由后级 Final Ceiling 真峰值阶段兜底。
  *
  * 全程 16× 过采样（抗混叠）。链接式立体声：增益由 max(|L|,|R|) 驱动、锚定在 mid 过零点。
  */
@@ -120,13 +120,9 @@ public:
                 gainQueue.pop_front();
             }
 
-            // ── 应用 + Final Ceiling 硬顶 ──
-            float yl = dl * currentGain;
-            float yr = dr * currentGain;
-            if (yl >  ceilLin) yl =  ceilLin; else if (yl < -ceilLin) yl = -ceilLin;
-            if (yr >  ceilLin) yr =  ceilLin; else if (yr < -ceilLin) yr = -ceilLin;
-            L[n] = yl;
-            R[n] = yr;
+            // ── 应用（无硬削波）──
+            L[n] = dl * currentGain;
+            R[n] = dr * currentGain;
 
             ++writePos;
             if (writePos >= bufferSize) writePos = 0;
