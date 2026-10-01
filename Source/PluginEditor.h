@@ -129,6 +129,7 @@ private:
     int initSyncDelay = 0;
     int syncTick = 0;
     int lastOpenCount = 0;   // DJAnta 跳转去重
+    int lastRefreshUI = 0;   // 刷新界面去重
     float lastInputGain = 0.0f;   // 上次 UI→参数同步的输入增益（检测宿主自动化是否改动）
     float lastOutput    = 0.0f;
 

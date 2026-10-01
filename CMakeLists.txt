@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 # ─── Project ───────────────────────────────────────────────────────────────
-project(Iridium VERSION 0.1.1 LANGUAGES CXX)  # v0.1.1 — Final Ceiling 真峰值 + LUFS 采样率修复 + UI 手感
+project(Iridium VERSION 0.1.1 LANGUAGES C CXX)  # v0.1.1 — LUFS 采样率修复 + UI 手感 + double 精度去量化噪声（JUCE 9 需 C 编译 zlib/jpeg/png/flac）
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -45,6 +45,7 @@ endif()
 # ─── Plugin target ──────────────────────────────────────────────────────────
 juce_add_plugin(Iridium
     PRODUCT_NAME                     "Iridium"
+    BUNDLE_ID                        "com.iumaudio.Iridium"
     COMPANY_NAME                     "Ium Audio"
     COMPANY_WEBSITE                  "https://iumaudio.com"
     COMPANY_EMAIL                    ""
@@ -54,11 +55,10 @@ juce_add_plugin(Iridium
     NEEDS_MIDI_INPUT                 FALSE
     NEEDS_MIDI_OUTPUT                FALSE
     IS_MIDI_EFFECT                   FALSE
-    EDITOR_BACKEND                   JUCE
     PLUGIN_MANUFACTURER_CODE         IumA
     PLUGIN_CODE                      Iri1
-    PLUGIN_DESCRIPTION               "Forward-looking gain field limiter"
-    VST3_CATEGORY                    "Fx|Dynamics"
+    DESCRIPTION                      "Forward-looking gain field limiter"
+    VST3_CATEGORIES                  Fx Dynamics
     COPY_PLUGIN_AFTER_BUILD          FALSE
 )
 

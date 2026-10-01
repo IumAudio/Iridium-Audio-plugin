@@ -2,7 +2,7 @@
 
 ## 项目概述
 基于「局部极值约束与零点锚定的前视增益场构造器」的新式 limiter（限幅器）VST3 插件。
-JUCE 8.0.14 + C++20，复用 Potassium（上一个插件）的完整编译架构（CMake + WebView2 UI）。
+JUCE 9.0.3 + C++20，复用 Potassium（上一个插件）的完整编译架构（CMake + WebView2 UI）。
 
 核心区别（相对 waveshaper）：输出 y = f(x) · g(t)，g(t) 是随时间和上下文连续绘制的增益场，由局部极值与过零点共同构造。
 
@@ -16,7 +16,7 @@ JUCE 8.0.14 + C++20，复用 Potassium（上一个插件）的完整编译架构
 ## 构建命令
 ```bash
 # 中文路径 bug 规避：源码同步到纯英文副本 /c/IridiumProj/ 再编译
-cmake -G "Visual Studio 18 2026" -DJUCE_ROOT="C:/H/Program Files/juce-8.0.14-windows/JUCE" /c/IridiumProj
+cmake -G "Visual Studio 18 2026" -DJUCE_ROOT="C:/H/Program Files/juce-9.0.3-windows/JUCE" /c/IridiumProj
 cmake --build . --config Release
 ```
 - VST3 输出: `/c/IridiumBuild/Iridium_artefacts/Release/VST3/Iridium.vst3`

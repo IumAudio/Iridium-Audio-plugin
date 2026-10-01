@@ -126,6 +126,13 @@ void IridiumAudioProcessorEditor::timerCallback()
                         juce::URL ("https://space.bilibili.com/3493259676486408?spm_id_from=333.1007.0.0").launchInDefaultBrowser();
                     }
                 }
+                if (v.hasProperty ("_refreshUI")) {
+                    int c = (int) v["_refreshUI"];
+                    if (c != lastRefreshUI) {
+                        lastRefreshUI = c;
+                        wv->goToURL (juce::WebBrowserComponent::getResourceProviderRoot());
+                    }
+                }
             });
         }
     );
@@ -169,7 +176,6 @@ void IridiumAudioProcessorEditor::pushMeters()
        << "S.outPeak=" << juce::String (safe (proc.getOutputPeakDB()), 1) << ";"
        << "S.gr="      << juce::String (safe (std::abs (proc.getGainReductionDB())), 1) << ";"
        << "S.lufs="    << juce::String (safe (proc.getShortLUFS()), 1) << ";"
-       << "S.sampleRate=" << juce::String (juce::roundToInt (proc.getSampleRate())) << ";"
        << "window._render()";
     wv->evaluateJavascript (js);
 }

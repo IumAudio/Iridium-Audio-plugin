@@ -8,7 +8,7 @@
 
 - 分段前视增益场（两段前视，峰值精准贴顶）
 - 16× 过采样（抗混叠）
-- Final Ceiling 真峰值天花板（16× 检测 + 2ms 前视，上限 0 dBFS 真峰值）
+- Final Ceiling 真峰值天花板（检测专用 16× 插值 + 1ms 前视，上限 0 dBFS 真峰值）
 - **LUFS 短期响度表**（ITU-R BS.1770 K 加权）
 - 输入/输出精度 0.01 dB（Shift+滚轮精细微调）
 - WebView2 界面 · 铱（Ir）元素美学 · 界面尺寸可调
@@ -35,7 +35,7 @@
 | **INPUT** | 输入增益 ±24 dB（精度 0.01 dB） |
 | **OUTPUT** | 末级输出微调 Trim ±24 dB（Ceiling 固定 0 dB） |
 
-- **FC**（Output 下）：Final Ceiling，开 = 16× 真峰值限幅（上限 0 dBFS 真峰值），关 = 样本峰值安全（上限 0 dBFS）
+- **FC**（Output 下）：Final Ceiling，开 = 真峰值压顶（上限 0 dBFS 真峰值），关 = 核心限幅器样本峰值安全（压顶关闭，延迟不变）
 - **OS**（Input 下）：OverSampling，开 = 16× 过采样，关 = 基频处理（更省 CPU；与 FC 独立互不影响）
 - **LINK**（两旋钮间）：联动 Input/Output，推起 Input 同时拉低 Output
 - **LUFS 表**（Input 电平下方）：短期响度数字表

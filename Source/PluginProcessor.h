@@ -15,7 +15,7 @@ namespace ParamIDs
     inline constexpr const char* inputGain = "inputGain";
     inline constexpr const char* output    = "output";
     inline constexpr const char* reduction = "reduction";
-    inline constexpr const char* fc        = "fc";       // Final Ceiling 开关
+    inline constexpr const char* fc        = "fc";       // FC 开关（占位，保留按钮，无音频作用）
     inline constexpr const char* os        = "os";       // OverSampling 开关
     inline constexpr const char* link      = "link";     // Input⇄Output 联动开关
 }
@@ -57,7 +57,7 @@ public:
                                                                .withCategory (AudioProcessorParameter::inputMeter)
                                                                .withAutomatable (false)));
 
-        // v0.0.8 三个开关：Final Ceiling / OverSampling / Link（默认 FC=开、OS=开、Link=关）
+        // v0.0.8 三个开关：FC（占位）/ OverSampling / Link（默认 FC=开、OS=开、Link=关）
         layout.add (std::make_unique<AudioParameterBool> (ParamIDs::fc,   "Final Ceiling", true));
         layout.add (std::make_unique<AudioParameterBool> (ParamIDs::os,   "OverSampling",  true));
         layout.add (std::make_unique<AudioParameterBool> (ParamIDs::link, "Link",          false));
@@ -70,12 +70,20 @@ public:
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
     void processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override;
+    using AudioProcessor::processBlock;   // 保留 double 重载（对齐官方模板，消除 overloaded-virtual 警告）
 
-    // ── Editor（v0.0.1：自定义简单 GUI）────────────────────────────────────
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override
+    {
+        return layouts.getMainInputChannelSet()  == juce::AudioChannelSet::stereo()
+            && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    }
+    bool isMidiEffect() const override { return false; }
+
+    // ── Editor ───────────────────────────────────────────────────────────────
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    // ── State ───────────────────────────────────────────────────────────────
+    // ── State ────────────────────────────────────────────────────────────────
     void getStateInformation (juce::MemoryBlock& destData) override
     {
         auto root = std::make_unique<juce::XmlElement> ("Iridium");
@@ -95,11 +103,11 @@ public:
         }
         else
         {
-            apvts.replaceState (juce::ValueTree::fromXml (*xml));   // 兼容旧格式（纯 apvts 状态）
+            apvts.replaceState (juce::ValueTree::fromXml (*xml));
         }
     }
 
-    // ── Identity ────────────────────────────────────────────────────────────
+    // ── Identity ─────────────────────────────────────────────────────────────
     const juce::String getName() const override { return "Iridium"; }
     bool acceptsMidi() const override    { return false; }
     bool producesMidi() const override   { return false; }
@@ -128,15 +136,18 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
 private:
-    // 16× 过采样（factor=4 → 2^4=16）：IIR 半带（低延迟）
-    juce::dsp::Oversampling<float> oversampling { 2, 4,
-        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, false };
-    IridiumLimiter limiter;        // 16× 过采样域（OS 开）
-    IridiumLimiter limiterBase;    // 基频域（OS 关）
-    FinalCeiling finalCeiling;     // Final Ceiling 真峰值天花板（FC 开关，独立于 OS）
+    // 16× 过采样（double 精度；factor=4 → 2^4=16）
+    juce::dsp::Oversampling<double> oversampling { 2, 4,
+        juce::dsp::Oversampling<double>::filterHalfBandPolyphaseIIR, true, false };
+    IridiumLimiter limiter;        // 16× 过采样域（OS 开，double 内部）
+    IridiumLimiter limiterBase;    // 基频域（OS 关，double 内部）
+    FinalCeiling finalCeiling;     // Final Ceiling：16× 前视平滑增益 + tanh 软顶（最终天花板）
 
-    // 短期响度 LUFS（BS.1770 K加权按宿主采样率重算 + 严格 3s 滑窗，测输出）
+    // 短期响度 LUFS（float 表头，BS.1770 K加权）
     ShortTermLoudness loudness;
+
+    // double 处理缓冲（复用，避免每块分配）
+    juce::AudioBuffer<double> dBuffer;
 
     juce::AudioParameterFloat* inputGainParam = nullptr;
     juce::AudioParameterFloat* outputParam    = nullptr;
@@ -149,7 +160,7 @@ private:
 
     int  osLatency       = 0;       // 过采样滤波器延迟（OS 开时才有）
     int  baseLookLatency = 0;       // 50ms 前视（基频样本，两种模式相同）
-    int  fcLatency       = 0;       // Final Ceiling 2ms 前视（基频样本，FC 开关不改变）
+    int  fcLatency       = 0;       // Final Ceiling 16× 滤波 + 2ms 前视（基频样本，恒定）
     bool lastOSState     = true;    // 上帧 OS 状态（检测切换 → 更新延迟上报）
     float lastGRDB       = 0.0f;    // 当前活跃限幅器的 GR（供编辑器）
 

@@ -28,10 +28,10 @@ void IridiumAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
 
     limiter.prepare (osRate, maxOsBlock, 50.0);              // OS 开：16× 域（前视 50ms）
     limiterBase.prepare (sampleRate, samplesPerBlock, 50.0); // OS 关：基频域（前视 50ms）
-    finalCeiling.prepare (sampleRate, samplesPerBlock);      // Final Ceiling：基频域 2ms 前视 + 独立 16× 检测
+    finalCeiling.prepare (sampleRate, samplesPerBlock);      // Final Ceiling：16× 前视平滑增益 + tanh 软顶
     loudness.prepare (sampleRate);                           // LUFS K加权按宿主采样率重算
 
-    // 延迟 = 50ms 前视（基频样本）+ OS 过采样滤波器延迟（仅 OS 开）+ Final Ceiling 2ms 前视（固定）
+    // 延迟 = 50ms 前视（基频样本）+ OS 过采样滤波器延迟（仅 OS 开）+ Final Ceiling（16× 滤波 + 2ms 前视，恒定）
     osLatency       = (int) oversampling.getLatencyInSamples();
     baseLookLatency = limiter.getLatencySamples() / (int) osFactor;
     fcLatency       = finalCeiling.getLatencySamples();
@@ -60,22 +60,33 @@ void IridiumAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
         setLatencySamples ((osOn ? (osLatency + baseLookLatency) : baseLookLatency) + fcLatency);
     }
 
+    // float → double（压低量化噪声底）
+    const int nch = buffer.getNumChannels();
+    const int ns  = buffer.getNumSamples();
+    dBuffer.setSize (nch, ns, false, false, true);
+    for (int ch = 0; ch < nch; ++ch)
+    {
+        const float* src = buffer.getReadPointer (ch);
+        double*      dst = dBuffer.getWritePointer (ch);
+        for (int i = 0; i < ns; ++i) dst[i] = (double) src[i];
+    }
+
     // 1) 输入增益
-    const float inputGainLin = std::pow (10.0f, inputGainParam->get() / 20.0f);
-    buffer.applyGain (inputGainLin);
+    const double inputGainLin = std::pow (10.0, inputGainParam->get() / 20.0);
+    dBuffer.applyGain (inputGainLin);
 
     // 输入峰值表（进限幅器前）
     {
-        float pk = 0.0f;
-        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            pk = std::max (pk, buffer.getMagnitude (ch, 0, buffer.getNumSamples()));
-        inPeakDB = 20.0f * std::log10 (pk + 1e-9f);
+        double pk = 0.0;
+        for (int ch = 0; ch < nch; ++ch)
+            pk = std::max (pk, dBuffer.getMagnitude (ch, 0, ns));
+        inPeakDB = (float) (20.0 * std::log10 (pk + 1e-9));
     }
 
     // 2) 限幅器（分段前视增益场；Ceiling 固定 0 dB；OS 开关决定是否 16× 过采样）
     IridiumLimiter& activeLimiter = osOn ? limiter : limiterBase;
     {
-        auto block = juce::dsp::AudioBlock<float> (buffer);
+        auto block = juce::dsp::AudioBlock<double> (dBuffer);
         if (osOn)
         {
             auto osBlock = oversampling.processSamplesUp (block);
@@ -89,32 +100,40 @@ void IridiumAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce
     }
 
     // 3) Output trim（后置增益；Link 开时 = −Input，即推起 Input 同时拉低 Output）
-    const float inDB      = inputGainParam->get();
-    const float outDB     = linkOn ? -inDB : outputParam->get();
-    const float outputLin = std::pow (10.0f, outDB / 20.0f);
-    buffer.applyGain (outputLin);
+    const double inDB      = inputGainParam->get();
+    const double outDB     = linkOn ? -inDB : outputParam->get();
+    const double outputLin = std::pow (10.0, outDB / 20.0);
+    dBuffer.applyGain (outputLin);
 
-    // 4) Final Ceiling：最终 0 dBFS 真峰值天花板（FC 开=16× 真峰值 / 关=样本峰值；独立于 OS）
-    finalCeiling.process (buffer, fcOn);
+    // 4) Final Ceiling：16× 前视平滑增益 + tanh 软顶（最终天花板；FC 开压顶 / 关透明）
+    finalCeiling.process (dBuffer, fcOn);
+
+    // double → float（写回宿主 buffer）
+    for (int ch = 0; ch < nch; ++ch)
+    {
+        const double* src = dBuffer.getReadPointer (ch);
+        float*        dst = buffer.getWritePointer (ch);
+        for (int i = 0; i < ns; ++i) dst[i] = (float) src[i];
+    }
 
     // 输出峰值表
     {
         float pk = 0.0f;
-        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-            pk = std::max (pk, buffer.getMagnitude (ch, 0, buffer.getNumSamples()));
+        for (int ch = 0; ch < nch; ++ch)
+            pk = std::max (pk, buffer.getMagnitude (ch, 0, ns));
         outPeakDB = 20.0f * std::log10 (pk + 1e-9f);
     }
 
-    // 5) 增益衰减表（活跃限幅器）
+    // 增益衰减表（活跃限幅器）
     const float grDB     = activeLimiter.getGainReductionDB();     // ≤ 0 dB
     lastGRDB             = grDB;
     const float grAmount = juce::jlimit (0.0f, 60.0f, -grDB);      // 正 dB = 衰减量
     reductionParam->setValueNotifyingHost (reductionParam->convertTo0to1 (grAmount));
 
-    // 6) 短期响度 LUFS（输出信号，K加权按宿主采样率重算）
+    // 短期响度 LUFS（输出信号，K加权按宿主采样率重算）
     {
         const float* lch = buffer.getReadPointer (0);
         const float* rch = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : lch;
-        loudness.process (lch, rch, buffer.getNumSamples());
+        loudness.process (lch, rch, ns);
     }
 }
